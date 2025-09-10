@@ -12,7 +12,6 @@ const initialBooks = [
     totalPages: 288,
     chapter: 8,
     progress: 65,
-    coverImage: 'https://covers.openlibrary.org/b/isbn/9780525559474-L.jpg',
   },
   {
     id: '2',
@@ -22,7 +21,6 @@ const initialBooks = [
     totalPages: 320,
     chapter: 12,
     progress: 45,
-    coverImage: 'https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg',
   },
   {
     id: '3',
@@ -32,7 +30,6 @@ const initialBooks = [
     totalPages: 400,
     chapter: 15,
     progress: 78,
-    coverImage: 'https://covers.openlibrary.org/b/isbn/9781501139239-L.jpg',
   },
   {
     id: '4',
@@ -42,7 +39,6 @@ const initialBooks = [
     totalPages: 334,
     chapter: 6,
     progress: 23,
-    coverImage: 'https://covers.openlibrary.org/b/isbn/9780399590504-L.jpg',
   },
 ];
 

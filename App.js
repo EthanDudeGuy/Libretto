@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import Homepage from './Homepage';
+import LibraryHomepage from './LibraryHomepage';
 import BookChat from './BookChat';
 
 export default function App() {
@@ -20,7 +20,7 @@ export default function App() {
   return (
     <>
       {currentView === 'homepage' ? (
-        <Homepage onNavigateToChat={navigateToChat} />
+        <LibraryHomepage onNavigateToChat={navigateToChat} />
       ) : (
         <BookChat book={selectedBook} onBack={navigateToHomepage} />
       )}
