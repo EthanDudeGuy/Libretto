@@ -1,21 +1,30 @@
+import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import Homepage from './Homepage';
+import BookChat from './BookChat';
 
-//react native maps components to their native widgets
 export default function App() {
+  const [currentView, setCurrentView] = useState('homepage');
+  const [selectedBook, setSelectedBook] = useState(null);
+
+  const navigateToChat = (book) => {
+    setSelectedBook(book);
+    setCurrentView('chat');
+  };
+
+  const navigateToHomepage = () => {
+    setCurrentView('homepage');
+    setSelectedBook(null);
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      {currentView === 'homepage' ? (
+        <Homepage onNavigateToChat={navigateToChat} />
+      ) : (
+        <BookChat book={selectedBook} onBack={navigateToHomepage} />
+      )}
+      <StatusBar style="light" />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
