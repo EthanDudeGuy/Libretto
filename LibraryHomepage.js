@@ -1,64 +1,69 @@
-import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, Alert, Image, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path } from 'react-native-svg';
+import theme from './theme';
 import BookCard from './BookCard';
+import AddBookModal from './AddBookModal';
+import { loadBooks, saveBooks, addBook, updateBook, deleteBook as deleteBookFromStorage } from './BookStorage';
 
-const initialBooks = [
-  {
-    id: '1',
-    title: 'The Midnight Library',
-    author: 'Matt Haig',
-    currentPage: 156,
-    totalPages: 288,
-    chapter: 8,
-    progress: 65,
-  },
-  {
-    id: '2',
-    title: 'Atomic Habits',
-    author: 'James Clear',
-    currentPage: 135,
-    totalPages: 320,
-    chapter: 12,
-    progress: 45,
-  },
-  {
-    id: '3',
-    title: 'The Seven Husbands of Evelyn Hugo',
-    author: 'Taylor Jenkins Reid',
-    currentPage: 234,
-    totalPages: 400,
-    chapter: 15,
-    progress: 78,
-  },
-  {
-    id: '4',
-    title: 'Educated',
-    author: 'Tara Westover',
-    currentPage: 92,
-    totalPages: 334,
-    chapter: 6,
-    progress: 23,
-  },
-];
 
 export default function Homepage({ onNavigateToChat }) {
-  const [books, setBooks] = useState(initialBooks);
+  const [books, setBooks] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAddBookModal, setShowAddBookModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const spinValue = useRef(new Animated.Value(0)).current;
 
-  const updateBookmark = (bookId, newPage, chapter) => {
-    setBooks(prevBooks => 
-      prevBooks.map(book => 
-        book.id === bookId 
-          ? { 
-              ...book, 
-              currentPage: newPage, 
-              chapter,
-              progress: Math.round((newPage / book.totalPages) * 100)
-            }
-          : book
-      )
-    );
+  // Load books from storage on component mount
+  useEffect(() => {
+    loadBooksFromStorage();
+  }, []);
+
+  const loadBooksFromStorage = async () => {
+    try {
+      const storedBooks = await loadBooks();
+      setBooks(storedBooks);
+    } catch (error) {
+      console.error('Error loading books:', error);
+      Alert.alert('Error', 'Failed to load your books');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddBook = async (newBook) => {
+    try {
+      const addedBook = await addBook(newBook);
+      setBooks(prevBooks => [...prevBooks, addedBook]);
+    } catch (error) {
+      console.error('Error adding book:', error);
+      Alert.alert('Error', 'Failed to add book to your library');
+    }
+  };
+
+  const spinIcon = () => {
+    spinValue.setValue(0);
+    Animated.timing(spinValue, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleAddBookPress = () => {
+    spinIcon();
+    setShowAddBookModal(true);
+  };
+
+  const updateBookmark = async (bookId, newPage, chapter) => {
+    try {
+      const updatedBooks = await updateBook(bookId, { currentPage: newPage, chapter });
+      setBooks(updatedBooks);
+    } catch (error) {
+      console.error('Error updating bookmark:', error);
+      Alert.alert('Error', 'Failed to update bookmark');
+    }
   };
 
   const deleteBook = (bookId) => {
@@ -70,7 +75,15 @@ export default function Homepage({ onNavigateToChat }) {
         { 
           text: "Delete", 
           style: "destructive",
-          onPress: () => setBooks(prevBooks => prevBooks.filter(book => book.id !== bookId))
+          onPress: async () => {
+            try {
+              const updatedBooks = await deleteBookFromStorage(bookId);
+              setBooks(updatedBooks);
+            } catch (error) {
+              console.error('Error deleting book:', error);
+              Alert.alert('Error', 'Failed to delete book');
+            }
+          }
         }
       ]
     );
@@ -103,38 +116,100 @@ export default function Homepage({ onNavigateToChat }) {
       <BookCard 
         book={item} 
         onUpdateBookmark={updateBookmark}
-        onDelete={deleteBook}
         onChat={handleChatWithBook}
       />
     </View>
   );
 
   return (
-    <LinearGradient
-      colors={['#6A1B9A', '#8E24AA', '#AB47BC']}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Your Literary Journey</Text>
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={() => setShowSettings(true)}
-        >
-          <Text style={styles.settingsIcon}>⚙️</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.appContainer}>
+      <View style={styles.container}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Image 
+                source={require('./assets/logo.png')} 
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>Libretto</Text>
+            </View>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={handleAddBookPress}
+              >
+                <Animated.View
+                  style={{
+                    transform: [{
+                      rotate: spinValue.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg']
+                      })
+                    }]
+                  }}
+                >
+                  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <Path 
+                      d="M7 12L12 12M12 12L17 12M12 12V7M12 12L12 17" 
+                      stroke={theme.colors.textPrimary} 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                </Animated.View>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.settingsButton}
+                onPress={() => setShowSettings(true)}
+              >
+                <Image 
+                source={require('./assets/setting.png')} 
+                style={styles.settingsIcon}
+                resizeMode="contain"
+                tintColor={theme.colors.textPrimary}
+              />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
 
-      <Text style={styles.subtitle}>Currently Reading</Text>
-      
-      <FlatList
-        data={books}
-        renderItem={renderBook}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
+        {/* Main Content Area */}
+        <View style={styles.mainContent}>
+          <View style={styles.contentContainer}>
+            
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading your books...</Text>
+              </View>
+            ) : books.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No books in your library yet</Text>
+                <Text style={styles.emptySubtext}>Tap the + button to add your first book!</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={books}
+                renderItem={renderBook}
+                keyExtractor={(item) => item.id}
+                numColumns={3}
+                columnWrapperStyle={styles.row}
+                contentContainerStyle={styles.listContainer}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
+          </View>
+        </View>
+
+        {/* Footer Section */}
+        <View style={styles.footer}>
+          <View style={styles.footerContent}>
+            <Text style={styles.footerText}>© 2025 Libretto - Your literary journey</Text>
+          </View>
+        </View>
+      </View>
 
       <Modal
         visible={showSettings}
@@ -159,104 +234,213 @@ export default function Homepage({ onNavigateToChat }) {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+
+      <AddBookModal
+        visible={showAddBookModal}
+        onClose={() => setShowAddBookModal(false)}
+        onAddBook={handleAddBook}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 50,
+    minHeight: '100%',
+    backgroundColor: theme.colors.background,
   },
   header: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+    paddingTop: 55,
+    paddingBottom: 18,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 22,
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
   },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 20,
+  logo: {
+    width: 53,
+    height: 53,
+  },
+  mainContent: {
+    flex: 1,
+    paddingVertical: 26,
+  },
+  contentContainer: {
+    paddingHorizontal: 22,
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+    flex: 1,
+  },
+  footer: {
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+    paddingVertical: 12,
+  },
+  footerContent: {
+    paddingHorizontal: 16,
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 15,
+    color: theme.colors.textMuted,
     textAlign: 'center',
   },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  addButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.blue,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0,
+  },
+  title: {
+    fontSize: 31,
+    fontWeight: 'bold',
+    color: theme.colors.textPrimary,
+    fontFamily: 'Inter_700Bold',
+  },
+  subtitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    marginBottom: 22,
+    textAlign: 'center',
+    fontFamily: 'Inter_600SemiBold',
+  },
   settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: theme.colors.borderSubtle,
   },
   settingsIcon: {
-    fontSize: 20,
+    width: 22,
+    height: 22,
   },
   listContainer: {
-    paddingBottom: 20,
+    paddingBottom: 22,
   },
   row: {
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
   },
   bookCardContainer: {
-    flex: 1,
-    marginHorizontal: 4,
+    marginHorizontal: 2,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
   settingsModal: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 22,
+    padding: 26,
     width: '80%',
     maxWidth: 300,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: theme.colors.borderStrong,
   },
   settingsTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.textPrimary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 22,
+    fontFamily: 'Inter_700Bold',
   },
   settingsOption: {
-    backgroundColor: 'rgba(156, 39, 176, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 13,
+    padding: 18,
+    marginBottom: 13,
     borderWidth: 1,
-    borderColor: 'rgba(156, 39, 176, 0.2)',
+    borderColor: theme.colors.borderSubtle,
   },
   settingsOptionText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#6A1B9A',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
+    fontFamily: 'Inter_600SemiBold',
   },
   cancelButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 13,
+    padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: theme.colors.borderSubtle,
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: theme.colors.textMuted,
     textAlign: 'center',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 66,
+  },
+  loadingText: {
+    fontSize: 20,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    fontFamily: 'Inter_500Medium',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 66,
+    paddingHorizontal: 44,
+  },
+  emptyText: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 9,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  emptySubtext: {
+    fontSize: 18,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 24,
+    fontFamily: 'Inter_400Regular',
   },
 });

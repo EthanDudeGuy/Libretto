@@ -1,191 +1,179 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import theme from './theme';
 
-export default function BookCard({ book, onUpdateBookmark, onDelete, onChat }) {
-  const { id, title, author, currentPage, totalPages, chapter, progress } = book;
+export default function BookCard({ book, onUpdateBookmark, onChat }) {
+  const { title, author, currentPage, totalPages, chapter, progress, pageChapter } = book;
+  const [isPressed, setIsPressed] = useState(false);
+  const scaleAnim = new Animated.Value(1);
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      onUpdateBookmark(id, currentPage - 1, chapter);
-    }
+  const handlePressIn = () => {
+    setIsPressed(true);
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
   };
 
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      onUpdateBookmark(id, currentPage + 1, chapter);
-    }
+  const handlePressOut = () => {
+    setIsPressed(false);
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
   };
+
+  const handleChat = () => {
+    if (onChat) onChat(book);
+  };
+
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.bookInfo}>
-          <Text style={styles.title} numberOfLines={2}>{title}</Text>
-          <Text style={styles.author} numberOfLines={1}>{author}</Text>
-        </View>
-        <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(id)}>
-          <Text style={styles.deleteText}>×</Text>
-        </TouchableOpacity>
-      </View>
+    <Animated.View style={[styles.cardContainer, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={handleChat}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={0.8}
+      >
+        <View style={styles.card}>
+          {/* Content area with padding */}
+          <View style={styles.contentArea}>
+            {/* Book cover placeholder */}
 
-      <View style={styles.bookmarkContainer}>
-        <Text style={styles.bookmarkText}>
-          Page {currentPage} of {totalPages}
-          {chapter && ` • Chapter ${chapter}`}
-        </Text>
-        <View style={styles.bookmarkControls}>
-          <TouchableOpacity 
-            style={[styles.arrowButton, currentPage <= 1 && styles.disabledButton]} 
-            onPress={handlePreviousPage}
-            disabled={currentPage <= 1}
-          >
-            <Text style={styles.arrowText}>←</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.arrowButton, currentPage >= totalPages && styles.disabledButton]} 
-            onPress={handleNextPage}
-            disabled={currentPage >= totalPages}
-          >
-            <Text style={styles.arrowText}>→</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View 
-            style={[styles.progressFill, { width: `${progress}%` }]} 
-          />
-        </View>
-        <Text style={styles.progressText}>{progress}%</Text>
-      </View>
+            <View style={styles.bookInfo}>
+              <Text style={styles.title} numberOfLines={2}>{title}</Text>
+              <Text style={styles.author} numberOfLines={1}>by {author}</Text>
+            </View>
+          </View>
 
-      <TouchableOpacity style={styles.chatButton} onPress={() => onChat(book)}>
-        <Text style={styles.chatButtonText}>💬 Discuss this book</Text>
+          {/* Progress bar at bottom - flush with card edges */}
+          <View style={styles.progressSection}>      
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${progress}%` }]} />
+              </View>
+            </View>
+          </View>
+        </View>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  cardContainer: {
+    marginBottom: 12,
+    marginHorizontal: 2,
+  },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 140,
+    height: 200,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: theme.colors.surface,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  header: {
-    flexDirection: 'row',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+    position: 'relative',
+    overflow: 'hidden',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  },
+  contentArea: {
+    flex: 1,
+    padding: 12,
+    paddingBottom: 8,
+  },
+  coverContainer: {
+    alignItems: 'center',
     marginBottom: 12,
+    zIndex: 2,
+  },
+  coverPlaceholder: {
+    width: 60,
+    height: 75,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    position: 'relative',
+  },
+  bookIcon: {
+    fontSize: 24,
+    color: theme.colors.textSecondary,
   },
   bookInfo: {
     flex: 1,
-    marginRight: 12,
+    zIndex: 2,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  author: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 8,
-  },
-  deleteButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deleteText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  bookmarkContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  bookmarkText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
     textAlign: 'center',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  author: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
     marginBottom: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    fontFamily: 'Inter_400Regular',
   },
-  bookmarkControls: {
+  progressSection: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  progressHeader: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  arrowButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 2,
   },
-  disabledButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  progressLabel: {
+    fontSize: 10,
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontFamily: 'Inter_600SemiBold',
   },
-  arrowText: {
-    color: '#fff',
-    fontSize: 18,
+  progressPercentage: {
+    fontSize: 12,
+    color: theme.colors.textPrimary,
     fontWeight: 'bold',
+    fontFamily: 'Inter_600SemiBold',
   },
   progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    margin: 0,
   },
   progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    height: 12,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 0,
     overflow: 'hidden',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    borderWidth: 0,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#9C27B0',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '600',
-  },
-  chatButton: {
-    backgroundColor: 'rgba(156, 39, 176, 0.3)',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(156, 39, 176, 0.5)',
-  },
-  chatButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
+    borderRadius: 0,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    backgroundColor: theme.colors.blue,
   },
 });

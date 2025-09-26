@@ -8,9 +8,12 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Animated
+  Animated,
+  Image
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import theme from './theme';
+import { updateBook } from './BookStorage';
+import BookCard from './BookCard';
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -25,27 +28,8 @@ export default function BookChat({ book, onBack }) {
   const duckBounce = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
 
-  // Generate sample chapters for directory
-  const generateChapterDirectory = () => {
-    const chapters = [];
-    for (let i = 1; i <= Math.min(book.chapter + 3, 20); i++) {
-      const startPage = Math.floor(((i - 1) / 20) * book.totalPages) + 1;
-      const endPage = Math.floor((i / 20) * book.totalPages);
-      chapters.push({
-        number: i,
-        title: `Chapter ${i}`,
-        startPage,
-        endPage,
-        isRead: i <= book.chapter,
-        isCurrent: i === book.chapter,
-      });
-    }
-    return chapters;
-  };
 
-  const chapters = generateChapterDirectory();
-
-  // Generate reading session summary
+  // Generate reading session summary -- Owen to get rid of this filler text... 
   const generateLastSessionSummary = () => {
     const summaries = {
       'The Midnight Library': `Welcome back! In your last session, you read about Nora's exploration of different life paths in the library between life and death. You left off at Chapter ${book.chapter} where she was discovering how her choices shaped alternate realities.`,
@@ -54,8 +38,9 @@ export default function BookChat({ book, onBack }) {
       'Educated': `Welcome back to Tara's powerful memoir! You last read Chapter ${book.chapter}, continuing her journey of self-discovery and education despite her challenging family circumstances.`
     };
     
-    return summaries[book.title] || `Welcome back to "${book.title}"! You're currently on page ${book.currentPage} of Chapter ${book.chapter}. Let's continue exploring this wonderful story together! 🦆`;
+    return summaries[book.title] || `Welcome back to "${book.title}"! You're currently on page ${book.currentPage} of Chapter ${book.chapter}. Let's continue exploring this wonderful story together!`;
   };
+
 
   // Duck animation sequence
   useEffect(() => {
@@ -196,6 +181,15 @@ export default function BookChat({ book, onBack }) {
           message.isUser ? styles.userBubble : styles.aiBubble
         ]}
       >
+        {!message.isUser && (
+          <View style={styles.aiLogoContainer}>
+            <Image 
+              source={require('./assets/duckbill.png')} 
+              style={styles.aiLogo}
+              resizeMode="contain"
+            />
+          </View>
+        )}
         <Text style={[
           styles.messageText,
           message.isUser ? styles.userText : styles.aiText
@@ -207,146 +201,149 @@ export default function BookChat({ book, onBack }) {
   );
 
   return (
-    <LinearGradient
-      colors={['#6A1B9A', '#8E24AA', '#AB47BC']}
-      style={styles.container}
-    >
+    <View style={[styles.container, { backgroundColor: theme.colors.background }] }>
       <KeyboardAvoidingView 
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        {/* Navigation Back Arrow */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={onBack}>
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
-          <View style={styles.bookInfo}>
-            <Text style={styles.bookTitle}>{book.title}</Text>
-            <Text style={styles.bookProgress}>
-              Page {book.currentPage} • Chapter {book.chapter}
-            </Text>
-          </View>
         </View>
 
         <View style={styles.mainContent}>
-          {/* Left Directory Column */}
-          <View style={styles.directoryContainer}>
-            <Text style={styles.directoryTitle}>Directory</Text>
-            <ScrollView style={styles.directoryScroll} showsVerticalScrollIndicator={false}>
-              {chapters.map((chapter) => (
-                <View 
-                  key={chapter.number}
-                  style={[
-                    styles.chapterItem,
-                    chapter.isCurrent && styles.currentChapter,
-                    !chapter.isRead && styles.unreadChapter
-                  ]}
-                >
-                  <Text style={[
-                    styles.chapterNumber,
-                    chapter.isCurrent && styles.currentChapterText,
-                    !chapter.isRead && styles.unreadChapterText
-                  ]}>
-                    {chapter.number}
-                  </Text>
-                  <View style={styles.chapterInfo}>
-                    <Text style={[
-                      styles.chapterTitle,
-                      chapter.isCurrent && styles.currentChapterText,
-                      !chapter.isRead && styles.unreadChapterText
-                    ]}>
-                      {chapter.title}
-                    </Text>
-                    <Text style={[
-                      styles.chapterPages,
-                      chapter.isCurrent && styles.currentChapterText,
-                      !chapter.isRead && styles.unreadChapterText
-                    ]}>
-                      p. {chapter.startPage}-{chapter.endPage}
-                    </Text>
-                  </View>
-                  {chapter.isCurrent && <Text style={styles.currentIndicator}>📖</Text>}
-                  {!chapter.isRead && <Text style={styles.lockIndicator}>🔒</Text>}
-                </View>
-              ))}
-            </ScrollView>
+          {/* Left Column: Book Cover and Facts */}
+          <View style={styles.leftColumn}>
+            {/* Book Cover using BookCard component */}
+            <View style={styles.bookCoverContainer}>
+              <BookCard book={book} />
+            </View>
+            
+            {/* Facts Section */}
+            <View style={styles.factsContainer}>
+              <Text style={styles.factsTitle}>Book Details</Text>
+              <View style={styles.factItem}>
+                <Text style={styles.factLabel}>Author:</Text>
+                <Text style={styles.factValue}>Jane Doe</Text>
+              </View>
+              <View style={styles.factItem}>
+                <Text style={styles.factLabel}>Published:</Text>
+                <Text style={styles.factValue}>2023</Text>
+              </View>
+              <View style={styles.factItem}>
+                <Text style={styles.factLabel}>Genre:</Text>
+                <Text style={styles.factValue}>Fantasy</Text>
+              </View>
+            </View>
           </View>
 
-          {/* Right Chat Area */}
-          <View style={styles.chatContainer}>
-            {/* Duck Greeting Overlay */}
-            {showDuckGreeting && (
-              <View style={styles.duckGreetingOverlay}>
-                <Animated.View 
-                  style={[
-                    styles.duckContainer,
-                    {
-                      transform: [
-                        { scale: duckScale },
-                        { translateY: duckBounce }
-                      ]
-                    }
-                  ]}
-                >
-                  <Text style={styles.duckEmoji}>🦆</Text>
-                </Animated.View>
-                <Animated.View 
-                  style={[
-                    styles.duckMessageContainer,
-                    { opacity: textOpacity }
-                  ]}
-                >
-                  <Text style={styles.duckGreetingText}>
-                    {generateLastSessionSummary()}
-                  </Text>
-                  <TouchableOpacity 
-                    style={styles.continueButton}
-                    onPress={handleDismissDuck}
-                  >
-                    <Text style={styles.continueButtonText}>Continue Reading Discussion</Text>
-                  </TouchableOpacity>
-                </Animated.View>
-              </View>
-            )}
+          {/* Right Column: Title, Progress, Chatbox */}
+          <View style={styles.rightColumn}>
+            {/* Book Title - Centered at top */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.bookTitle}>{book.title}</Text>
+            </View>
 
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.messagesContainer}
-              contentContainerStyle={styles.messagesContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {messages.map(renderMessage)}
-              
-              {isTyping && (
-                <View style={[styles.messageContainer, styles.aiMessage]}>
-                  <View style={[styles.messageBubble, styles.aiBubble]}>
-                    <Text style={styles.typingText}>AI is thinking...</Text>
-                  </View>
+            {/* Progress Bar - Under title */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarFill, { width: `${Math.round((book.currentPage / book.totalPages) * 100)}%` }]} />
+              </View>
+              <Text style={styles.progressText}>
+                {Math.round((book.currentPage / book.totalPages) * 100)}% Complete
+              </Text>
+            </View>
+
+            {/* Chatbox - Large box on right side */}
+            <View style={styles.chatContainer}>
+              {/* Duck Greeting Overlay */}
+              {showDuckGreeting && (
+                <View style={styles.duckGreetingOverlay}>
+                  <Animated.View 
+                    style={[
+                      styles.duckContainer,
+                      {
+                        transform: [
+                          { scale: duckScale },
+                          { translateY: duckBounce }
+                        ]
+                      }
+                    ]}
+                  >
+                    <Image 
+                      source={require('./assets/duckbill.png')} 
+                      style={styles.duckLogo}
+                      resizeMode="contain"
+                    />
+                  </Animated.View>
+                  <Animated.View 
+                    style={[
+                      styles.duckMessageContainer,
+                      { opacity: textOpacity }
+                    ]}
+                  >
+                    <Text style={styles.duckGreetingText}>
+                      {generateLastSessionSummary()}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.continueButton}
+                      onPress={handleDismissDuck}
+                    >
+                      <Text style={styles.continueButtonText}>Continue discussion</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
                 </View>
               )}
-            </ScrollView>
+
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.messagesContainer}
+                contentContainerStyle={styles.messagesContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {messages.map(renderMessage)}
+                
+                {isTyping && (
+                  <View style={[styles.messageContainer, styles.aiMessage]}>
+                    <View style={[styles.messageBubble, styles.aiBubble]}>
+                      <View style={styles.aiLogoContainer}>
+                        <Image 
+                          source={require('./assets/duckbill.png')} 
+                          style={styles.aiLogo}
+                          resizeMode="contain"
+                        />
+                      </View>
+                      <Text style={styles.typingText}>Waddle is thinking...</Text>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+              
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.textInput}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  placeholder="Ask about themes, characters, plot..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+                  onPress={handleSendMessage}
+                  disabled={!inputText.trim() || isTyping}
+                >
+                  <Text style={styles.sendButtonText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Ask about themes, characters, plot..."
-            placeholderTextColor="rgba(255, 255, 255, 0.6)"
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={!inputText.trim() || isTyping}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
-        </View>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -359,107 +356,113 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+    borderBottomColor: theme.colors.borderSubtle,
   },
   backButton: {
     marginBottom: 12,
   },
   backButtonText: {
-    color: '#fff',
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
-  },
-  bookInfo: {
-    alignItems: 'center',
-  },
-  bookTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  bookProgress: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'Inter_600SemiBold',
   },
   mainContent: {
     flex: 1,
     flexDirection: 'row',
   },
-  directoryContainer: {
+  // Left Column Styles
+  leftColumn: {
     width: 200,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.surface,
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255, 255, 255, 0.2)',
+    borderRightColor: theme.colors.borderSubtle,
     paddingVertical: 16,
+    paddingHorizontal: 12,
   },
-  directoryTitle: {
-    color: '#fff',
+  bookCoverContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  factsContainer: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  factsTitle: {
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 12,
+    fontFamily: 'Inter_600SemiBold',
   },
-  directoryScroll: {
-    flex: 1,
-  },
-  chapterItem: {
+  factItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginHorizontal: 8,
-    marginVertical: 2,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  currentChapter: {
-    backgroundColor: 'rgba(156, 39, 176, 0.3)',
-    borderWidth: 1,
-    borderColor: 'rgba(156, 39, 176, 0.5)',
-  },
-  unreadChapter: {
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-  },
-  chapterNumber: {
-    color: 'rgba(255, 255, 255, 0.8)',
+  factLabel: {
+    color: theme.colors.textMuted,
     fontSize: 14,
-    fontWeight: 'bold',
-    width: 24,
-    textAlign: 'center',
-    marginRight: 8,
+    fontFamily: 'Inter_500Medium',
   },
-  chapterInfo: {
-    flex: 1,
-  },
-  chapterTitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 12,
+  factValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 14,
     fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
-  chapterPages: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontSize: 10,
-    marginTop: 2,
+  // Right Column Styles
+  rightColumn: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
-  currentChapterText: {
-    color: '#fff',
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  unreadChapterText: {
-    color: 'rgba(255, 255, 255, 0.3)',
+  bookTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontFamily: 'Inter_700Bold',
   },
-  currentIndicator: {
-    fontSize: 12,
+  progressContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
   },
-  lockIndicator: {
-    fontSize: 10,
+  progressBarTrack: {
+    width: '100%',
+    height: 12,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: theme.colors.blue,
+  },
+  progressText: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
   },
   chatContainer: {
     flex: 1,
     position: 'relative',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    overflow: 'hidden',
   },
   duckGreetingOverlay: {
     position: 'absolute',
@@ -467,7 +470,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(106, 27, 154, 0.95)',
+    backgroundColor: 'rgba(15, 20, 25, 0.96)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
@@ -477,12 +480,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  duckEmoji: {
-    fontSize: 80,
-    textAlign: 'center',
+  duckLogo: {
+    width: 80,
+    height: 80,
   },
   duckMessageContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: theme.colors.surface,
     borderRadius: 20,
     padding: 24,
     maxWidth: '90%',
@@ -491,19 +494,22 @@ const styles = StyleSheet.create({
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     elevation: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
   },
   duckGreetingText: {
     fontSize: 16,
-    color: '#333',
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
+    fontFamily: 'Inter_500Medium',
   },
   continueButton: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: theme.colors.blue,
     borderRadius: 25,
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -514,6 +520,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+    fontFamily: 'Inter_600SemiBold',
   },
   messagesContainer: {
     flex: 1,
@@ -537,25 +544,41 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   userBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: theme.colors.blueMuted,
     borderBottomRightRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
   },
   aiBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: theme.colors.surfaceElevated,
     borderBottomLeftRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  aiLogoContainer: {
+    marginRight: 8,
+    marginTop: 2,
+  },
+  aiLogo: {
+    width: 24,
+    height: 24,
   },
   messageText: {
     fontSize: 16,
     lineHeight: 20,
+    flex: 1,
+    fontFamily: 'Inter_400Regular',
   },
   userText: {
-    color: '#fff',
+    color: theme.colors.textPrimary,
   },
   aiText: {
-    color: '#333',
+    color: theme.colors.textSecondary,
   },
   typingText: {
-    color: '#666',
+    color: theme.colors.textMuted,
     fontStyle: 'italic',
   },
   inputContainer: {
@@ -563,24 +586,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: theme.colors.surfaceElevated,
     alignItems: 'flex-end',
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
   },
   textInput: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: theme.colors.surface,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginRight: 12,
-    color: '#fff',
+    color: theme.colors.textPrimary,
     fontSize: 16,
     maxHeight: 100,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: theme.colors.borderStrong,
   },
   sendButton: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: theme.colors.blue,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
@@ -588,11 +613,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: 'rgba(156, 39, 176, 0.3)',
+    backgroundColor: 'rgba(66, 133, 244, 0.4)',
   },
   sendButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
 });
