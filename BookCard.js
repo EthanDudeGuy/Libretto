@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import theme from './theme';
@@ -6,7 +6,77 @@ import theme from './theme';
 export default function BookCard({ book, onUpdateBookmark, onChat }) {
   const { title, author, currentPage, totalPages, chapter, progress, pageChapter } = book;
   const [isPressed, setIsPressed] = useState(false);
-  const scaleAnim = new Animated.Value(1);
+  const [isHovered, setIsHovered] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  // Shake and rotate animation effect
+  useEffect(() => {
+    if (isHovered) {
+      const startShake = () => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(shakeAnim, {
+              toValue: 1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(shakeAnim, {
+              toValue: -1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(shakeAnim, {
+              toValue: 0,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      };
+      
+      const startRotate = () => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(rotateAnim, {
+              toValue: 1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rotateAnim, {
+              toValue: -1,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rotateAnim, {
+              toValue: 0,
+              duration: 100,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      };
+      
+      startShake();
+      startRotate();
+    } else {
+      shakeAnim.stopAnimation();
+      rotateAnim.stopAnimation();
+      Animated.parallel([
+        Animated.timing(shakeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [isHovered, shakeAnim, rotateAnim]);
 
   const handlePressIn = () => {
     setIsPressed(true);
@@ -24,27 +94,72 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
     }).start();
   };
 
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
+
   const handleChat = () => {
     if (onChat) onChat(book);
   };
 
 
   return (
-    <Animated.View style={[styles.cardContainer, { transform: [{ scale: scaleAnim }] }]}>
+    <Animated.View style={[
+      styles.cardContainer, 
+      { 
+        transform: [
+          { scale: scaleAnim },
+          { 
+            translateX: shakeAnim.interpolate({
+              inputRange: [-1, 1],
+              outputRange: [-2, 2],
+            })
+          },
+          {
+            rotate: rotateAnim.interpolate({
+              inputRange: [-1, 1],
+              outputRange: ['-3deg', '3deg'],
+            })
+          }
+        ] 
+      }
+    ]}>
       <TouchableOpacity
         onPress={handleChat}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         activeOpacity={0.8}
       >
         <View style={styles.card}>
           {/* Content area with padding */}
           <View style={styles.contentArea}>
-            {/* Book cover placeholder */}
-
-            <View style={styles.bookInfo}>
-              <Text style={styles.title} numberOfLines={2}>{title}</Text>
-              <Text style={styles.author} numberOfLines={1}>by {author}</Text>
+            {/* Book cover */}
+            <View style={styles.coverContainer}>
+              {book.thumbnail ? (
+                <Image 
+                  source={{ uri: book.thumbnail }} 
+                  style={styles.bookCover}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.coverPlaceholder}>
+                  <Text style={styles.placeholderText}>📖</Text>
+                </View>
+              )}
+              
+              {/* Title overlay - shows on hover or for books without covers */}
+              {(!book.thumbnail || isHovered) && (
+                <View style={styles.titleOverlay}>
+                  <Text style={styles.overlayTitle} numberOfLines={2}>{title}</Text>
+                  <Text style={styles.overlayAuthor} numberOfLines={1}>by {author}</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -92,43 +207,54 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   coverContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
-    zIndex: 2,
+    padding: 8,
+  },
+  bookCover: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+    maxWidth: 100,
+    maxHeight: 140,
   },
   coverPlaceholder: {
-    width: 60,
-    height: 75,
+    width: 100,
+    height: 140,
     backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 6,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    position: 'relative',
   },
-  bookIcon: {
-    fontSize: 24,
-    color: theme.colors.textSecondary,
+  placeholderText: {
+    fontSize: 32,
+    color: theme.colors.textMuted,
   },
-  bookInfo: {
-    flex: 1,
-    zIndex: 2,
+  titleOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    padding: 8,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
   },
-  title: {
-    fontSize: 16,
+  overlayTitle: {
+    fontSize: 12,
     fontWeight: 'bold',
-    color: theme.colors.textPrimary,
-    marginBottom: 4,
+    color: '#fff',
     textAlign: 'center',
     fontFamily: 'Inter_600SemiBold',
+    marginBottom: 2,
   },
-  author: {
-    fontSize: 12,
-    color: theme.colors.textMuted,
-    marginBottom: 8,
+  overlayAuthor: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
-    fontStyle: 'italic',
     fontFamily: 'Inter_400Regular',
   },
   progressSection: {

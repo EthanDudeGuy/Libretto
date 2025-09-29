@@ -3,6 +3,23 @@ import { Platform } from 'react-native';
 
 const BOOKS_STORAGE_KEY = '@libretto_books';
 
+// Helper function to calculate progress percentage
+export const calculateProgress = (currentPage, totalPages) => {
+  if (!totalPages || totalPages <= 0) return 0;
+  return Math.round((currentPage / totalPages) * 100);
+};
+
+// Helper function to get reading status
+export const getReadingStatus = (progress) => {
+  if (progress === 0) return 'Not started';
+  if (progress < 25) return 'Just started';
+  if (progress < 50) return 'Getting into it';
+  if (progress < 75) return 'Halfway through';
+  if (progress < 90) return 'Almost done';
+  if (progress < 100) return 'Nearly finished';
+  return 'Completed';
+};
+
 // Save books to storage
 export const saveBooks = async (books) => {
   try {
@@ -40,9 +57,10 @@ export const addBook = async (newBook) => {
     const bookWithId = {
       ...newBook,
       id: Date.now().toString(), // Simple ID generation
-      progress: Math.round((newBook.currentPage / newBook.totalPages) * 100)
+      // Progress is already calculated in the modal, but ensure it's valid
+      progress: newBook.progress || Math.round((newBook.currentPage / newBook.totalPages) * 100)
     };
-    const updatedBooks = [...existingBooks, bookWithId];
+    const updatedBooks = [bookWithId, ...existingBooks]; // Add new book to the beginning for top-left positioning
     await saveBooks(updatedBooks);
     return bookWithId;
   } catch (error) {
@@ -55,15 +73,19 @@ export const addBook = async (newBook) => {
 export const updateBook = async (bookId, updates) => {
   try {
     const existingBooks = await loadBooks();
-    const updatedBooks = existingBooks.map(book => 
-      book.id === bookId 
-        ? { 
-            ...book, 
-            ...updates,
-            progress: updates.currentPage ? Math.round((updates.currentPage / book.totalPages) * 100) : book.progress
-          }
-        : book
-    );
+    const updatedBooks = existingBooks.map(book => {
+      if (book.id === bookId) {
+        const updatedBook = { ...book, ...updates };
+        
+        // Recalculate progress if currentPage was updated
+        if (updates.currentPage !== undefined) {
+          updatedBook.progress = Math.round((updates.currentPage / book.totalPages) * 100);
+        }
+        
+        return updatedBook;
+      }
+      return book;
+    });
     await saveBooks(updatedBooks);
     return updatedBooks;
   } catch (error) {

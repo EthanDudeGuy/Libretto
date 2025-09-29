@@ -6,6 +6,7 @@ import theme from './theme';
 import BookCard from './BookCard';
 import AddBookModal from './AddBookModal';
 import { loadBooks, saveBooks, addBook, updateBook, deleteBook as deleteBookFromStorage } from './BookStorage';
+import { useAuth } from './AuthContext';
 
 
 export default function Homepage({ onNavigateToChat }) {
@@ -14,6 +15,7 @@ export default function Homepage({ onNavigateToChat }) {
   const [showAddBookModal, setShowAddBookModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const spinValue = useRef(new Animated.Value(0)).current;
+  const { logout, user } = useAuth();
 
   // Load books from storage on component mount
   useEffect(() => {
@@ -35,7 +37,7 @@ export default function Homepage({ onNavigateToChat }) {
   const handleAddBook = async (newBook) => {
     try {
       const addedBook = await addBook(newBook);
-      setBooks(prevBooks => [...prevBooks, addedBook]);
+      setBooks(prevBooks => [addedBook, ...prevBooks]); // Add new book to the beginning for top-left positioning
     } catch (error) {
       console.error('Error adding book:', error);
       Alert.alert('Error', 'Failed to add book to your library');
@@ -102,9 +104,9 @@ export default function Homepage({ onNavigateToChat }) {
         { 
           text: "Logout", 
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             setShowSettings(false);
-            // Handle logout logic here
+            await logout();
           }
         }
       ]
@@ -133,7 +135,12 @@ export default function Homepage({ onNavigateToChat }) {
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Libretto</Text>
+              <View>
+                <Text style={styles.title}>Libretto</Text>
+                {user && (
+                  <Text style={styles.welcomeText}>Welcome, {user.name}</Text>
+                )}
+              </View>
             </View>
             <View style={styles.headerButtons}>
               <TouchableOpacity 
@@ -326,6 +333,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontFamily: 'Inter_700Bold',
   },
+  welcomeText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 2,
+  },
   subtitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -352,10 +365,11 @@ const styles = StyleSheet.create({
     paddingBottom: 22,
   },
   row: {
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
   bookCardContainer: {
-    marginHorizontal: 2,
+    marginHorizontal: 25,
   },
   modalOverlay: {
     flex: 1,

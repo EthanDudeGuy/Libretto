@@ -12,8 +12,8 @@ import {
   Image
 } from 'react-native';
 import theme from './theme';
-import { updateBook } from './BookStorage';
-import BookCard from './BookCard';
+import { updateBook, calculateProgress, getReadingStatus } from './BookStorage';
+import SimpleBookImage from './SimpleBookImage';
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -21,6 +21,7 @@ export default function BookChat({ book, onBack }) {
   const [isTyping, setIsTyping] = useState(false);
   const [showDuckGreeting, setShowDuckGreeting] = useState(true);
   const [duckAnimationComplete, setDuckAnimationComplete] = useState(false);
+  const [sessionSummary, setSessionSummary] = useState('');
   const scrollViewRef = useRef();
   
   // Animation values
@@ -29,18 +30,111 @@ export default function BookChat({ book, onBack }) {
   const textOpacity = useRef(new Animated.Value(0)).current;
 
 
-  // Generate reading session summary -- Owen to get rid of this filler text... 
-  const generateLastSessionSummary = () => {
-    const summaries = {
-      'The Midnight Library': `Welcome back! In your last session, you read about Nora's exploration of different life paths in the library between life and death. You left off at Chapter ${book.chapter} where she was discovering how her choices shaped alternate realities.`,
-      'Atomic Habits': `Great to see you again! Last time, you were diving into Chapter ${book.chapter} about the compound effect of small habits. You were exploring how 1% improvements can lead to remarkable results over time.`,
-      'The Seven Husbands of Evelyn Hugo': `Hello again! In your previous reading session, you reached Chapter ${book.chapter} where Evelyn was revealing more secrets about her past relationships and the truth behind her glamorous Hollywood facade.`,
-      'Educated': `Welcome back to Tara's powerful memoir! You last read Chapter ${book.chapter}, continuing her journey of self-discovery and education despite her challenging family circumstances.`
-    };
+  // AI Summary Generation Framework
+  // TODO: Replace with actual AI service integration
+  const generateAISummary = async (bookData) => {
+    // This is where you'll integrate with your AI service
+    // Example structure:
+    // const aiResponse = await fetch('/api/generate-summary', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     bookTitle: bookData.title,
+    //     currentPage: bookData.currentPage,
+    //     chapter: bookData.chapter,
+    //     previousSessionData: bookData.sessionHistory,
+    //     userNotes: bookData.notes
+    //   })
+    // });
+    // return await aiResponse.json();
     
-    return summaries[book.title] || `Welcome back to "${book.title}"! You're currently on page ${book.currentPage} of Chapter ${book.chapter}. Let's continue exploring this wonderful story together!`;
+    // For now, return null to use placeholder
+    return null;
   };
 
+  // Dynamic summary generator using Google Books data
+  const generatePlaceholderSummary = () => {
+    const progress = book.progress || 0;
+    const currentPage = book.currentPage || 1;
+    const totalPages = book.totalPages || 1;
+    const author = book.author || 'the author';
+    const publishedDate = book.publishedDate || '';
+    const categories = book.categories || [];
+    const description = book.description || '';
+    
+    // Determine reading status
+    let readingStatus = '';
+    if (progress === 0) readingStatus = "You're just starting this journey";
+    else if (progress < 25) readingStatus = "You're getting into the story";
+    else if (progress < 50) readingStatus = "You're making good progress";
+    else if (progress < 75) readingStatus = "You're well into the book";
+    else if (progress < 90) readingStatus = "You're almost at the end";
+    else if (progress < 100) readingStatus = "You're nearly finished";
+    else readingStatus = "You've completed this book";
+    
+    // Get genre information
+    const genre = categories.length > 0 ? categories[0] : 'this book';
+    
+    // Create personalized greeting
+    const greeting = progress === 0 ? "Welcome to" : "Welcome back to";
+    
+    // Build the summary
+    let summary = `${greeting} "${book.title}" by ${author}! `;
+    
+    if (progress === 0) {
+      summary += `You're about to start reading ${genre.toLowerCase()}. `;
+      if (description) {
+        const shortDesc = description.length > 150 ? description.substring(0, 150) + '...' : description;
+        summary += `Here's what it's about: ${shortDesc} `;
+      }
+      summary += `You'll be reading ${totalPages} pages of ${author}'s work. Ready to dive in?`;
+    } else {
+      summary += `${readingStatus} - you're on page ${currentPage} of ${totalPages} (${progress}%). `;
+      
+      if (progress < 25) {
+        summary += `You're in the early chapters where ${author} is setting up the story. `;
+      } else if (progress < 50) {
+        summary += `You're getting into the heart of the story where the plot is developing. `;
+      } else if (progress < 75) {
+        summary += `You're in the middle section where the story is really unfolding. `;
+      } else if (progress < 90) {
+        summary += `You're approaching the climax and resolution of the story. `;
+      } else if (progress < 100) {
+        summary += `You're in the final pages - the conclusion is near! `;
+      }
+      
+      summary += `What would you like to discuss about "${book.title}"?`;
+    }
+    
+    return summary;
+  };
+
+  // Main summary generation function
+  const generateLastSessionSummary = async () => {
+    try {
+      // Try to get AI-generated summary first
+      const aiSummary = await generateAISummary(book);
+      
+      if (aiSummary && aiSummary.summary) {
+        return aiSummary.summary;
+      }
+    } catch (error) {
+      console.log('AI summary generation failed, using placeholder:', error);
+    }
+    
+    // Fallback to placeholder content
+    return generatePlaceholderSummary();
+  };
+
+
+  // Load session summary when component mounts
+  useEffect(() => {
+    const loadSummary = async () => {
+      const summary = await generateLastSessionSummary();
+      setSessionSummary(summary);
+    };
+    loadSummary();
+  }, []);
 
   // Duck animation sequence
   useEffect(() => {
@@ -77,14 +171,8 @@ export default function BookChat({ book, onBack }) {
       );
       bounceAnimation.start();
 
-      // Auto-dismiss after 5 seconds
-      const timer = setTimeout(() => {
-        handleDismissDuck();
-      }, 5000);
-
       return () => {
         bounceAnimation.stop();
-        clearTimeout(timer);
       };
     }
   }, [showDuckGreeting]);
@@ -107,7 +195,7 @@ export default function BookChat({ book, onBack }) {
       // Add the initial AI message after duck greeting
       setMessages([{
         id: '1',
-        text: `Now that you're caught up, what would you like to discuss about "${book.title}"? I'm here to explore themes, characters, and plot points with you - all while respecting where you are in the story!`,
+        text: `Now that you're caught up, what would you like to discuss about "${book.title}"? I'm here to explore themes, characters, and plot points with you`,
         isUser: false,
         timestamp: new Date(),
       }]);
@@ -139,6 +227,24 @@ export default function BookChat({ book, onBack }) {
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
+  const handlePageChange = async (direction) => {
+    const newPage = book.currentPage + direction;
+    if (newPage >= 1 && newPage <= book.totalPages) {
+      try {
+        const newProgress = calculateProgress(newPage, book.totalPages);
+        await updateBook(book.id, { 
+          currentPage: newPage,
+          progress: newProgress
+        });
+        // Update the book object locally for immediate UI update
+        book.currentPage = newPage;
+        book.progress = newProgress;
+      } catch (error) {
+        console.error('Error updating page:', error);
+      }
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
 
@@ -166,6 +272,7 @@ export default function BookChat({ book, onBack }) {
       setIsTyping(false);
     }, 1500);
   };
+
 
   const renderMessage = (message) => (
     <View
@@ -201,24 +308,76 @@ export default function BookChat({ book, onBack }) {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }] }>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface }] }>
       <KeyboardAvoidingView 
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Navigation Back Arrow */}
+        {/* Header Section with Back Button and Book Title */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity style={styles.backButtonModal} onPress={onBack}>
+              <Text style={styles.backButtonText}>← Back</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerBookTitle}>{book.title}</Text>
+          </View>
+          <View style={styles.headerRight} />
         </View>
 
+        {/* Progress Section */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <TouchableOpacity 
+                  style={[styles.progressArrow, book.currentPage <= 1 && styles.progressArrowDisabled]}
+                  onPress={() => handlePageChange(-1)}
+                  disabled={book.currentPage <= 1}
+                >
+                  <Text style={[styles.progressArrowText, book.currentPage <= 1 && styles.progressArrowTextDisabled]}>‹</Text>
+                </TouchableOpacity>
+                
+                <View style={styles.dottedProgressContainer}>
+                  {Array.from({ length: Math.min(book.totalPages, 20) }, (_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.progressDot,
+                        index < book.currentPage && styles.progressDotFilled
+                      ]}
+                    />
+                  ))}
+                  {book.totalPages > 20 && (
+                    <Text style={styles.progressDotText}>...</Text>
+                  )}
+                </View>
+                
+                <TouchableOpacity 
+                  style={[styles.progressArrow, book.currentPage >= book.totalPages && styles.progressArrowDisabled]}
+                  onPress={() => handlePageChange(1)}
+                  disabled={book.currentPage >= book.totalPages}
+                >
+                  <Text style={[styles.progressArrowText, book.currentPage >= book.totalPages && styles.progressArrowTextDisabled]}>›</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={styles.progressText}>
+                Page {book.currentPage} of {book.totalPages} ({book.progress}%)
+              </Text>
+              <Text style={styles.readingStatusText}>
+                {getReadingStatus(book.progress)}
+              </Text>
+            </View>
+        </View>
+
+        {/* Main Content Area */}
         <View style={styles.mainContent}>
           {/* Left Column: Book Cover and Facts */}
           <View style={styles.leftColumn}>
-            {/* Book Cover using BookCard component */}
+            {/* Book Cover using SimpleBookImage component */}
             <View style={styles.bookCoverContainer}>
-              <BookCard book={book} />
+              <SimpleBookImage book={book} />
             </View>
             
             {/* Facts Section */}
@@ -226,36 +385,39 @@ export default function BookChat({ book, onBack }) {
               <Text style={styles.factsTitle}>Book Details</Text>
               <View style={styles.factItem}>
                 <Text style={styles.factLabel}>Author:</Text>
-                <Text style={styles.factValue}>Jane Doe</Text>
+                <Text style={styles.factValue}>{book.author || 'Unknown'}</Text>
               </View>
               <View style={styles.factItem}>
                 <Text style={styles.factLabel}>Published:</Text>
-                <Text style={styles.factValue}>2023</Text>
+                <Text style={styles.factValue}>{book.publishedDate || 'Unknown'}</Text>
               </View>
               <View style={styles.factItem}>
-                <Text style={styles.factLabel}>Genre:</Text>
-                <Text style={styles.factValue}>Fantasy</Text>
+                <Text style={styles.factLabel}>Pages:</Text>
+                <Text style={styles.factValue}>{book.totalPages || 'Unknown'}</Text>
               </View>
+              {book.categories && book.categories.length > 0 && (
+                <View style={styles.factItem}>
+                  <Text style={styles.factLabel}>Genre:</Text>
+                  <Text style={styles.factValue}>{book.categories[0]}</Text>
+                </View>
+              )}
+              {book.publisher && (
+                <View style={styles.factItem}>
+                  <Text style={styles.factLabel}>Publisher:</Text>
+                  <Text style={styles.factValue}>{book.publisher}</Text>
+                </View>
+              )}
+              {book.isbn && (
+                <View style={styles.factItem}>
+                  <Text style={styles.factLabel}>ISBN:</Text>
+                  <Text style={styles.factValue}>{book.isbn}</Text>
+                </View>
+              )}
             </View>
           </View>
 
-          {/* Right Column: Title, Progress, Chatbox */}
+          {/* Right Column: Chatbox */}
           <View style={styles.rightColumn}>
-            {/* Book Title - Centered at top */}
-            <View style={styles.titleContainer}>
-              <Text style={styles.bookTitle}>{book.title}</Text>
-            </View>
-
-            {/* Progress Bar - Under title */}
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: `${Math.round((book.currentPage / book.totalPages) * 100)}%` }]} />
-              </View>
-              <Text style={styles.progressText}>
-                {Math.round((book.currentPage / book.totalPages) * 100)}% Complete
-              </Text>
-            </View>
-
             {/* Chatbox - Large box on right side */}
             <View style={styles.chatContainer}>
               {/* Duck Greeting Overlay */}
@@ -285,7 +447,7 @@ export default function BookChat({ book, onBack }) {
                     ]}
                   >
                     <Text style={styles.duckGreetingText}>
-                      {generateLastSessionSummary()}
+                      {sessionSummary || 'Loading your reading summary...'}
                     </Text>
                     <TouchableOpacity 
                       style={styles.continueButton}
@@ -350,22 +512,64 @@ export default function BookChat({ book, onBack }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingLeft: 22,
+    paddingRight: 22,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 50,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderSubtle,
+    paddingBottom: 8,
   },
-  backButton: {
-    marginBottom: 12,
+  headerLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  headerRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  backButtonModal: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   backButtonText: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
+  },
+  headerTitleContainer: {
+    flex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBookTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontFamily: 'Inter_700Bold',
+  },
+  progressSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   mainContent: {
     flex: 1,
@@ -385,11 +589,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   factsContainer: {
-    backgroundColor: theme.colors.surfaceElevated,
+    backgroundColor: 'transparent',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: theme.colors.borderStrong,
   },
   factsTitle: {
     color: theme.colors.textSecondary,
@@ -421,39 +625,76 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  bookTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    fontFamily: 'Inter_700Bold',
-  },
   progressContainer: {
-    marginBottom: 20,
     alignItems: 'center',
   },
-  progressBarTrack: {
-    width: '100%',
-    height: 12,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    overflow: 'hidden',
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
+    gap: 12,
   },
-  progressBarFill: {
-    height: '100%',
+  progressArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  progressArrowDisabled: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.borderSubtle,
+    opacity: 0.5,
+  },
+  progressArrowText: {
+    fontSize: 18,
+    color: theme.colors.textPrimary,
+    fontWeight: 'bold',
+  },
+  progressArrowTextDisabled: {
+    color: theme.colors.textMuted,
+  },
+  dottedProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    maxWidth: 200,
+  },
+  progressDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  progressDotFilled: {
     backgroundColor: theme.colors.blue,
+    borderColor: theme.colors.blue,
+  },
+  progressDotText: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    marginLeft: 4,
   },
   progressText: {
     color: theme.colors.textMuted,
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
+  },
+  readingStatusText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   chatContainer: {
     flex: 1,
@@ -461,7 +702,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
+    borderColor: theme.colors.borderStrong,
     overflow: 'hidden',
   },
   duckGreetingOverlay: {
@@ -589,7 +830,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceElevated,
     alignItems: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
+    borderTopColor: theme.colors.borderStrong,
   },
   textInput: {
     flex: 1,
@@ -602,7 +843,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     maxHeight: 100,
     borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
+    borderColor: theme.colors.borderSubtle,
   },
   sendButton: {
     backgroundColor: theme.colors.blue,
