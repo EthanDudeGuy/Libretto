@@ -5,7 +5,7 @@ const GOOGLE_BOOKS_API_BASE = 'https://www.googleapis.com/books/v1';
 
 // You'll need to get an API key from Google Cloud Console
 // https://console.cloud.google.com/apis/credentials
-const API_KEY = 'AIzaSyB8GlhJOwWBCcX1HAvazOMCWzSGiZf9W6M';
+const API_KEY = 'AIzaSyB8GlhJOwWBCcX1HAvazOMCWzSGiZf9W6M'; 
 
 class GoogleBooksAPI {
   constructor(apiKey = API_KEY) {

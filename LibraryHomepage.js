@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import theme from './theme';
 import BookCard from './BookCard';
 import AddBookModal from './AddBookModal';
+import DeleteBookModal from './DeleteBookModal';
 import { loadBooks, saveBooks, addBook, updateBook, deleteBook as deleteBookFromStorage } from './BookStorage';
 import { useAuth } from './AuthContext';
 
@@ -13,8 +14,12 @@ export default function Homepage({ onNavigateToChat }) {
   const [books, setBooks] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showAddBookModal, setShowAddBookModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [bookToDelete, setBookToDelete] = useState(null);
   const [loading, setLoading] = useState(true);
   const spinValue = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const { logout, user } = useAuth();
 
   // Load books from storage on component mount
@@ -38,6 +43,38 @@ export default function Homepage({ onNavigateToChat }) {
     try {
       const addedBook = await addBook(newBook);
       setBooks(prevBooks => [addedBook, ...prevBooks]); // Add new book to the beginning for top-left positioning
+    } catch (error) {
+      console.error('Error adding book:', error);
+      Alert.alert('Error', 'Failed to add book to your library');
+    }
+  };
+
+  const handleBookAddedAndNavigate = async (newBook) => {
+    try {
+      // Add the book to storage
+      const addedBook = await addBook(newBook);
+      setBooks(prevBooks => [addedBook, ...prevBooks]);
+      
+      // Close the modal first
+      setShowAddBookModal(false);
+      
+      // Start fade out and scale animation
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 600,
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        // Navigate to chat after animation completes
+        onNavigateToChat(addedBook);
+      });
+      
     } catch (error) {
       console.error('Error adding book:', error);
       Alert.alert('Error', 'Failed to add book to your library');
@@ -69,31 +106,51 @@ export default function Homepage({ onNavigateToChat }) {
   };
 
   const deleteBook = (bookId) => {
-    Alert.alert(
-      "Delete Book",
-      "Are you sure you want to remove this book from your library?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const updatedBooks = await deleteBookFromStorage(bookId);
-              setBooks(updatedBooks);
-            } catch (error) {
-              console.error('Error deleting book:', error);
-              Alert.alert('Error', 'Failed to delete book');
-            }
-          }
-        }
-      ]
-    );
+    const book = books.find(b => b.id === bookId);
+    if (book) {
+      setBookToDelete(book);
+      setShowDeleteModal(true);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!bookToDelete) return;
+    
+    try {
+      const updatedBooks = await deleteBookFromStorage(bookToDelete.id);
+      setBooks(updatedBooks);
+    } catch (error) {
+      console.error('Error deleting book:', error);
+      Alert.alert('Error', 'Failed to delete book');
+    } finally {
+      setBookToDelete(null);
+    }
   };
 
   const handleChatWithBook = (book) => {
-    onNavigateToChat(book);
+    // Start fade out and scale animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 600,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      // Navigate to chat after animation completes
+      onNavigateToChat(book);
+    });
   };
+
+  // Reset animation when component mounts (returning from chat)
+  useEffect(() => {
+    fadeAnim.setValue(1);
+    scaleAnim.setValue(1);
+  }, [fadeAnim, scaleAnim]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -119,13 +176,17 @@ export default function Homepage({ onNavigateToChat }) {
         book={item} 
         onUpdateBookmark={updateBookmark}
         onChat={handleChatWithBook}
+        onDelete={deleteBook}
       />
     </View>
   );
 
   return (
     <View style={styles.appContainer}>
-      <View style={styles.container}>
+      <Animated.View style={[styles.container, { 
+        opacity: fadeAnim,
+        transform: [{ scale: scaleAnim }]
+      }]}>
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
@@ -216,7 +277,8 @@ export default function Homepage({ onNavigateToChat }) {
             <Text style={styles.footerText}>© 2025 Libretto - Your literary journey</Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
+
 
       <Modal
         visible={showSettings}
@@ -246,6 +308,17 @@ export default function Homepage({ onNavigateToChat }) {
         visible={showAddBookModal}
         onClose={() => setShowAddBookModal(false)}
         onAddBook={handleAddBook}
+        onBookAddedAndNavigate={handleBookAddedAndNavigate}
+      />
+
+      <DeleteBookModal
+        visible={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setBookToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        book={bookToDelete}
       />
     </View>
   );

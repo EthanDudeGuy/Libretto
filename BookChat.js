@@ -9,11 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-  Image
+  Image,
+  PanResponder
 } from 'react-native';
 import theme from './theme';
-import { updateBook, calculateProgress, getReadingStatus } from './BookStorage';
+import { updateBook, calculateProgress } from './BookStorage';
 import SimpleBookImage from './SimpleBookImage';
+import { sendMessageToClaude, generateBookSummary } from './ClaudeAPI';
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -22,12 +24,15 @@ export default function BookChat({ book, onBack }) {
   const [showDuckGreeting, setShowDuckGreeting] = useState(true);
   const [duckAnimationComplete, setDuckAnimationComplete] = useState(false);
   const [sessionSummary, setSessionSummary] = useState('');
+  const [draggedLineIndex, setDraggedLineIndex] = useState(null);
+  const [currentBook, setCurrentBook] = useState(book);
   const scrollViewRef = useRef();
   
   // Animation values
   const duckScale = useRef(new Animated.Value(0)).current;
   const duckBounce = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
+  const pageFadeAnim = useRef(new Animated.Value(0)).current;
 
 
   // AI Summary Generation Framework
@@ -54,84 +59,60 @@ export default function BookChat({ book, onBack }) {
 
   // Dynamic summary generator using Google Books data
   const generatePlaceholderSummary = () => {
-    const progress = book.progress || 0;
-    const currentPage = book.currentPage || 1;
-    const totalPages = book.totalPages || 1;
-    const author = book.author || 'the author';
-    const publishedDate = book.publishedDate || '';
-    const categories = book.categories || [];
-    const description = book.description || '';
-    
-    // Determine reading status
-    let readingStatus = '';
-    if (progress === 0) readingStatus = "You're just starting this journey";
-    else if (progress < 25) readingStatus = "You're getting into the story";
-    else if (progress < 50) readingStatus = "You're making good progress";
-    else if (progress < 75) readingStatus = "You're well into the book";
-    else if (progress < 90) readingStatus = "You're almost at the end";
-    else if (progress < 100) readingStatus = "You're nearly finished";
-    else readingStatus = "You've completed this book";
-    
-    // Get genre information
-    const genre = categories.length > 0 ? categories[0] : 'this book';
-    
-    // Create personalized greeting
-    const greeting = progress === 0 ? "Welcome to" : "Welcome back to";
-    
-    // Build the summary
-    let summary = `${greeting} "${book.title}" by ${author}! `;
+    const progress = currentBook.progress || 0;
+    const currentPage = currentBook.currentPage || 1;
+    const totalPages = currentBook.totalPages || 1;
     
     if (progress === 0) {
-      summary += `You're about to start reading ${genre.toLowerCase()}. `;
-      if (description) {
-        const shortDesc = description.length > 150 ? description.substring(0, 150) + '...' : description;
-        summary += `Here's what it's about: ${shortDesc} `;
-      }
-      summary += `You'll be reading ${totalPages} pages of ${author}'s work. Ready to dive in?`;
+      return `Welcome to "${currentBook.title}"! Ready to start reading?`;
     } else {
-      summary += `${readingStatus} - you're on page ${currentPage} of ${totalPages} (${progress}%). `;
-      
-      if (progress < 25) {
-        summary += `You're in the early chapters where ${author} is setting up the story. `;
-      } else if (progress < 50) {
-        summary += `You're getting into the heart of the story where the plot is developing. `;
-      } else if (progress < 75) {
-        summary += `You're in the middle section where the story is really unfolding. `;
-      } else if (progress < 90) {
-        summary += `You're approaching the climax and resolution of the story. `;
-      } else if (progress < 100) {
-        summary += `You're in the final pages - the conclusion is near! `;
-      }
-      
-      summary += `What would you like to discuss about "${book.title}"?`;
+      return `Welcome back to "${currentBook.title}"! You're on page ${currentPage} of ${totalPages}. What would you like to discuss?`;
     }
-    
-    return summary;
   };
 
   // Main summary generation function
   const generateLastSessionSummary = async () => {
     try {
-      // Try to get AI-generated summary first
-      const aiSummary = await generateAISummary(book);
+      // Try to get AI-generated summary from Claude first
+      const claudeSummary = await generateBookSummary(currentBook);
       
-      if (aiSummary && aiSummary.summary) {
-        return aiSummary.summary;
+      if (claudeSummary.success) {
+        return claudeSummary.summary;
+      } else {
+        throw new Error(`Claude summary failed: ${claudeSummary.error}`);
       }
     } catch (error) {
-      console.log('AI summary generation failed, using placeholder:', error);
+      console.error('Summary generation failed:', error);
+      throw error; // Re-throw to let the calling function handle it
     }
-    
-    // Fallback to placeholder content
-    return generatePlaceholderSummary();
   };
 
+
+  // Update local book state when prop changes
+  useEffect(() => {
+    setCurrentBook(book);
+  }, [book]);
+
+  // Page fade-in animation when component mounts
+  useEffect(() => {
+    Animated.timing(pageFadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [pageFadeAnim]);
 
   // Load session summary when component mounts
   useEffect(() => {
     const loadSummary = async () => {
-      const summary = await generateLastSessionSummary();
-      setSessionSummary(summary);
+      try {
+        const summary = await generateLastSessionSummary();
+        setSessionSummary(summary);
+      } catch (error) {
+        console.error('Failed to load summary:', error);
+        // Use a simple fallback message
+        setSessionSummary(`Welcome to "${currentBook.title}"! What would you like to discuss?`);
+      }
     };
     loadSummary();
   }, []);
@@ -195,7 +176,7 @@ export default function BookChat({ book, onBack }) {
       // Add the initial AI message after duck greeting
       setMessages([{
         id: '1',
-        text: `Now that you're caught up, what would you like to discuss about "${book.title}"? I'm here to explore themes, characters, and plot points with you`,
+        text: `Now that you're caught up, what would you like to discuss about "${currentBook.title}"? I'm here to explore themes, characters, and plot points with you`,
         isUser: false,
         timestamp: new Date(),
       }]);
@@ -214,36 +195,105 @@ export default function BookChat({ book, onBack }) {
     }, 100);
   };
 
-  const generateAIResponse = (userMessage) => {
-    // Simulate AI response based on book context
-    const responses = [
-      `That's a fascinating point about the themes in "${book.title}". Based on what you've read so far (up to page ${book.currentPage}), the author seems to be exploring...`,
-      `Great question! In the chapters you've completed, we can see how the character development has been building towards...`,
-      `I love that observation! The literary techniques ${book.author} uses in these early chapters really set up...`,
-      `That's an insightful analysis. Without spoiling anything beyond page ${book.currentPage}, I can say that the symbolism you've noticed...`,
-      `Excellent point about the narrative structure! What you've read so far shows how ${book.author} is crafting...`
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
+  const generateAIResponse = async (userMessage) => {
+    try {
+      // Use Claude API for smart responses
+      const claudeResponse = await sendMessageToClaude(userMessage, currentBook, messages);
+      
+      if (claudeResponse.success) {
+        return claudeResponse.message;
+      } else {
+        throw new Error(`Claude API failed: ${claudeResponse.error}`);
+      }
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      throw error; // Re-throw to let the calling function handle it
+    }
   };
 
   const handlePageChange = async (direction) => {
-    const newPage = book.currentPage + direction;
-    if (newPage >= 1 && newPage <= book.totalPages) {
+    const newPage = currentBook.currentPage + direction;
+    if (newPage >= 1 && newPage <= currentBook.totalPages) {
       try {
-        const newProgress = calculateProgress(newPage, book.totalPages);
-        await updateBook(book.id, { 
+        const newProgress = calculateProgress(newPage, currentBook.totalPages);
+        await updateBook(currentBook.id, { 
           currentPage: newPage,
           progress: newProgress
         });
-        // Update the book object locally for immediate UI update
-        book.currentPage = newPage;
-        book.progress = newProgress;
+        // Update the local book state for immediate UI update
+        setCurrentBook(prev => ({
+          ...prev,
+          currentPage: newPage,
+          progress: newProgress
+        }));
       } catch (error) {
         console.error('Error updating page:', error);
       }
     }
   };
+
+  // Create PanResponder for line dragging
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    
+    onPanResponderGrant: (event) => {
+      // Calculate which line was touched
+      const touchX = event.nativeEvent.locationX;
+      const lineWidth = 3; // Width of each line
+      const lineSpacing = 2; // Space between lines
+      const totalWidth = lineWidth + lineSpacing;
+      const lineIndex = Math.floor(touchX / totalWidth);
+      setDraggedLineIndex(lineIndex);
+    },
+    
+    onPanResponderMove: (event) => {
+      // Update which line is being dragged during movement
+      const touchX = event.nativeEvent.locationX;
+      const lineWidth = 3;
+      const lineSpacing = 2;
+      const totalWidth = lineWidth + lineSpacing;
+      const lineIndex = Math.floor(touchX / totalWidth);
+      setDraggedLineIndex(lineIndex);
+    },
+    
+    onPanResponderRelease: async (event) => {
+      const touchX = event.nativeEvent.locationX;
+      const lineWidth = 3;
+      const lineSpacing = 2;
+      const totalWidth = lineWidth + lineSpacing;
+      const lineIndex = Math.floor(touchX / totalWidth);
+      
+      // Convert line index to page number (assuming lines represent pages)
+      const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines max
+      const newPage = Math.max(1, Math.min(currentBook.totalPages, Math.round((lineIndex / maxLines) * currentBook.totalPages) + 1));
+      
+      if (newPage !== currentBook.currentPage) {
+        try {
+          const newProgress = calculateProgress(newPage, currentBook.totalPages);
+          await updateBook(currentBook.id, { 
+            currentPage: newPage,
+            progress: newProgress
+          });
+          // Update the local book state for immediate UI update
+          setCurrentBook(prev => ({
+            ...prev,
+            currentPage: newPage,
+            progress: newProgress
+          }));
+        } catch (error) {
+          console.error('Error updating page:', error);
+        }
+      }
+      
+      setDraggedLineIndex(null);
+    },
+    
+    onPanResponderTerminate: () => {
+      setDraggedLineIndex(null);
+    }
+  });
+
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -256,23 +306,78 @@ export default function BookChat({ book, onBack }) {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputText;
     setInputText('');
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    setTimeout(() => {
+    try {
+      // Generate AI response from Claude
+      const aiResponseText = await generateAIResponse(currentInput);
+      
       const aiResponse = {
         id: (Date.now() + 1).toString(),
-        text: generateAIResponse(inputText),
+        text: aiResponseText,
         isUser: false,
         timestamp: new Date(),
       };
       
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      
+      // Show specific error message about API configuration
+      const errorResponse = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm having trouble connecting to the AI service. Please check that your Claude API key is valid and try again. If the problem persists, the API key may need to be updated.",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
+
+
+  const renderPageLines = () => {
+    const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines for performance
+    const lines = [];
+    
+    for (let i = 0; i < maxLines; i++) {
+      const isCurrentPage = Math.round((i / maxLines) * currentBook.totalPages) + 1 === currentBook.currentPage;
+      const isDragged = draggedLineIndex === i;
+      const isCompleted = Math.round((i / maxLines) * currentBook.totalPages) + 1 < currentBook.currentPage;
+      
+      // All lines have the same height - no bell curve variation (20% bigger)
+      const baseHeight = 19.2; // 16 * 1.2 (20% increase)
+      
+      // Slightly taller if being dragged or is current page
+      const finalHeight = isDragged ? baseHeight * 1.5 : (isCurrentPage ? baseHeight * 1.25 : baseHeight);
+      
+      lines.push(
+        <View
+          key={i}
+          style={[
+            styles.pageLine,
+            {
+              height: finalHeight,
+              backgroundColor: isCompleted 
+                ? theme.colors.blue 
+                : isCurrentPage 
+                  ? theme.colors.blueMuted 
+                  : theme.colors.surfaceElevated,
+              borderColor: isCurrentPage ? theme.colors.blue : theme.colors.borderSubtle,
+              transform: [{ scaleY: isDragged ? 1.2 : 1 }]
+            }
+          ]}
+        />
+      );
+    }
+    
+    return lines;
+  };
 
   const renderMessage = (message) => (
     <View
@@ -308,7 +413,10 @@ export default function BookChat({ book, onBack }) {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }] }>
+    <Animated.View style={[styles.container, { 
+      backgroundColor: theme.colors.surface,
+      opacity: pageFadeAnim
+    }]}>
       <KeyboardAvoidingView 
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -321,7 +429,7 @@ export default function BookChat({ book, onBack }) {
             </TouchableOpacity>
           </View>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerBookTitle}>{book.title}</Text>
+            <Text style={styles.headerBookTitle}>{currentBook.title}</Text>
           </View>
           <View style={styles.headerRight} />
         </View>
@@ -329,46 +437,32 @@ export default function BookChat({ book, onBack }) {
         {/* Progress Section */}
         <View style={styles.progressSection}>
           <View style={styles.progressContainer}>
-              <View style={styles.progressHeader}>
-                <TouchableOpacity 
-                  style={[styles.progressArrow, book.currentPage <= 1 && styles.progressArrowDisabled]}
-                  onPress={() => handlePageChange(-1)}
-                  disabled={book.currentPage <= 1}
-                >
-                  <Text style={[styles.progressArrowText, book.currentPage <= 1 && styles.progressArrowTextDisabled]}>‹</Text>
-                </TouchableOpacity>
-                
-                <View style={styles.dottedProgressContainer}>
-                  {Array.from({ length: Math.min(book.totalPages, 20) }, (_, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.progressDot,
-                        index < book.currentPage && styles.progressDotFilled
-                      ]}
-                    />
-                  ))}
-                  {book.totalPages > 20 && (
-                    <Text style={styles.progressDotText}>...</Text>
-                  )}
-                </View>
-                
-                <TouchableOpacity 
-                  style={[styles.progressArrow, book.currentPage >= book.totalPages && styles.progressArrowDisabled]}
-                  onPress={() => handlePageChange(1)}
-                  disabled={book.currentPage >= book.totalPages}
-                >
-                  <Text style={[styles.progressArrowText, book.currentPage >= book.totalPages && styles.progressArrowTextDisabled]}>›</Text>
-                </TouchableOpacity>
+            <View style={styles.progressHeader}>
+              <TouchableOpacity 
+                style={[styles.progressArrow, currentBook.currentPage <= 1 && styles.progressArrowDisabled]}
+                onPress={() => handlePageChange(-1)}
+                disabled={currentBook.currentPage <= 1}
+              >
+                <Text style={[styles.progressArrowText, currentBook.currentPage <= 1 && styles.progressArrowTextDisabled]}>‹</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.pageLinesContainer} {...panResponder.panHandlers}>
+                {renderPageLines()}
               </View>
               
-              <Text style={styles.progressText}>
-                Page {book.currentPage} of {book.totalPages} ({book.progress}%)
-              </Text>
-              <Text style={styles.readingStatusText}>
-                {getReadingStatus(book.progress)}
-              </Text>
+              <TouchableOpacity 
+                style={[styles.progressArrow, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowDisabled]}
+                onPress={() => handlePageChange(1)}
+                disabled={currentBook.currentPage >= currentBook.totalPages}
+              >
+                <Text style={[styles.progressArrowText, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowTextDisabled]}>›</Text>
+              </TouchableOpacity>
             </View>
+            
+            <Text style={styles.progressText}>
+              Page {currentBook.currentPage} of {currentBook.totalPages} ({currentBook.progress}%)
+            </Text>
+          </View>
         </View>
 
         {/* Main Content Area */}
@@ -377,42 +471,73 @@ export default function BookChat({ book, onBack }) {
           <View style={styles.leftColumn}>
             {/* Book Cover using SimpleBookImage component */}
             <View style={styles.bookCoverContainer}>
-              <SimpleBookImage book={book} />
+              <SimpleBookImage book={currentBook} />
             </View>
             
-            {/* Facts Section */}
-            <View style={styles.factsContainer}>
-              <Text style={styles.factsTitle}>Book Details</Text>
-              <View style={styles.factItem}>
-                <Text style={styles.factLabel}>Author:</Text>
-                <Text style={styles.factValue}>{book.author || 'Unknown'}</Text>
-              </View>
-              <View style={styles.factItem}>
-                <Text style={styles.factLabel}>Published:</Text>
-                <Text style={styles.factValue}>{book.publishedDate || 'Unknown'}</Text>
-              </View>
-              <View style={styles.factItem}>
-                <Text style={styles.factLabel}>Pages:</Text>
-                <Text style={styles.factValue}>{book.totalPages || 'Unknown'}</Text>
-              </View>
-              {book.categories && book.categories.length > 0 && (
-                <View style={styles.factItem}>
-                  <Text style={styles.factLabel}>Genre:</Text>
-                  <Text style={styles.factValue}>{book.categories[0]}</Text>
+            {/* Book Info Section */}
+            <View style={styles.bookInfoContainer}>
+              <View style={styles.infoContent}>
+                <View style={styles.infoRow}>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoLabel}>Author</Text>
+                    <Text style={styles.infoValue} numberOfLines={2}>{currentBook.author || 'Unknown'}</Text>
+                  </View>
                 </View>
-              )}
-              {book.publisher && (
-                <View style={styles.factItem}>
-                  <Text style={styles.factLabel}>Publisher:</Text>
-                  <Text style={styles.factValue}>{book.publisher}</Text>
+
+                <View style={styles.infoDivider} />
+
+                <View style={styles.infoRow}>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoLabel}>Published</Text>
+                    <Text style={styles.infoValue}>{currentBook.publishedDate || 'Unknown'}</Text>
+                  </View>
                 </View>
-              )}
-              {book.isbn && (
-                <View style={styles.factItem}>
-                  <Text style={styles.factLabel}>ISBN:</Text>
-                  <Text style={styles.factValue}>{book.isbn}</Text>
+
+                <View style={styles.infoDivider} />
+
+                <View style={styles.infoRow}>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoLabel}>Pages</Text>
+                    <Text style={styles.infoValue}>{currentBook.totalPages || 'Unknown'}</Text>
+                  </View>
                 </View>
-              )}
+
+                {currentBook.categories && currentBook.categories.length > 0 && (
+                  <>
+                    <View style={styles.infoDivider} />
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoTextContainer}>
+                        <Text style={styles.infoLabel}>Genre</Text>
+                        <Text style={styles.infoValue} numberOfLines={2}>{currentBook.categories[0]}</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {currentBook.publisher && (
+                  <>
+                    <View style={styles.infoDivider} />
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoTextContainer}>
+                        <Text style={styles.infoLabel}>Publisher</Text>
+                        <Text style={styles.infoValue} numberOfLines={2}>{currentBook.publisher}</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {currentBook.isbn && (
+                  <>
+                    <View style={styles.infoDivider} />
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoTextContainer}>
+                        <Text style={styles.infoLabel}>ISBN</Text>
+                        <Text style={styles.infoValue} numberOfLines={1}>{currentBook.isbn}</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+              </View>
             </View>
           </View>
 
@@ -505,7 +630,7 @@ export default function BookChat({ book, onBack }) {
           </View>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -559,7 +684,7 @@ const styles = StyleSheet.create({
   },
   headerBookTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 20,
+    fontSize: 30,
     fontWeight: 'bold',
     textAlign: 'center',
     fontFamily: 'Inter_700Bold',
@@ -588,36 +713,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  factsContainer: {
-    backgroundColor: 'transparent',
-    borderRadius: 12,
-    padding: 16,
+  bookInfoContainer: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  factsTitle: {
-    color: theme.colors.textSecondary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
+  infoHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  factItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  factLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
-  factValue: {
+  infoTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 14,
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  infoTitleUnderline: {
+    width: 40,
+    height: 3,
+    backgroundColor: theme.colors.blue,
+    borderRadius: 2,
+  },
+  infoContent: {
+    gap: 0,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  infoTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  infoLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    lineHeight: 16,
+  },
+  infoValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
+    lineHeight: 20,
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: theme.colors.borderSubtle,
+    marginHorizontal: 4,
+    marginVertical: 4,
   },
   // Right Column Styles
   rightColumn: {
@@ -635,6 +797,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 12,
   },
+  pageLinesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center', // Changed from 'flex-end' to 'center' for proper alignment
+    justifyContent: 'center',
+    height: 38.4, // Increased by 20% (32 * 1.2)
+    gap: 2,
+    paddingHorizontal: 8,
+  },
+  pageLine: {
+    width: 4,
+    borderRadius: 8, // Much more rounded for pill shape
+    borderWidth: 1,
+    transition: 'all 0.2s ease',
+  },
   progressArrow: {
     width: 32,
     height: 32,
@@ -644,6 +820,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    alignSelf: 'center', // Ensure arrows align with center of progress bar
   },
   progressArrowDisabled: {
     backgroundColor: theme.colors.surface,
@@ -658,43 +835,10 @@ const styles = StyleSheet.create({
   progressArrowTextDisabled: {
     color: theme.colors.textMuted,
   },
-  dottedProgressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    maxWidth: 200,
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  progressDotFilled: {
-    backgroundColor: theme.colors.blue,
-    borderColor: theme.colors.blue,
-  },
-  progressDotText: {
-    color: theme.colors.textMuted,
-    fontSize: 12,
-    marginLeft: 4,
-  },
   progressText: {
     color: theme.colors.textMuted,
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
-  },
-  readingStatusText: {
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    marginTop: 4,
-    fontStyle: 'italic',
   },
   chatContainer: {
     flex: 1,

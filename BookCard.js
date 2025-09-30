@@ -3,80 +3,11 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Animated } from 'react
 import { LinearGradient } from 'expo-linear-gradient';
 import theme from './theme';
 
-export default function BookCard({ book, onUpdateBookmark, onChat }) {
+export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
   const { title, author, currentPage, totalPages, chapter, progress, pageChapter } = book;
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  // Shake and rotate animation effect
-  useEffect(() => {
-    if (isHovered) {
-      const startShake = () => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(shakeAnim, {
-              toValue: 1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(shakeAnim, {
-              toValue: -1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(shakeAnim, {
-              toValue: 0,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-      };
-      
-      const startRotate = () => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(rotateAnim, {
-              toValue: 1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(rotateAnim, {
-              toValue: -1,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-            Animated.timing(rotateAnim, {
-              toValue: 0,
-              duration: 100,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-      };
-      
-      startShake();
-      startRotate();
-    } else {
-      shakeAnim.stopAnimation();
-      rotateAnim.stopAnimation();
-      Animated.parallel([
-        Animated.timing(shakeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        })
-      ]).start();
-    }
-  }, [isHovered, shakeAnim, rotateAnim]);
 
   const handlePressIn = () => {
     setIsPressed(true);
@@ -106,30 +37,24 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
     if (onChat) onChat(book);
   };
 
+  const handleDelete = (e) => {
+    e.stopPropagation(); // Prevent triggering the chat function
+    if (onDelete) onDelete(book.id);
+  };
+
 
   return (
     <Animated.View style={[
       styles.cardContainer, 
       { 
         transform: [
-          { scale: scaleAnim },
-          { 
-            translateX: shakeAnim.interpolate({
-              inputRange: [-1, 1],
-              outputRange: [-2, 2],
-            })
-          },
-          {
-            rotate: rotateAnim.interpolate({
-              inputRange: [-1, 1],
-              outputRange: ['-3deg', '3deg'],
-            })
-          }
+          { scale: scaleAnim }
         ] 
       }
     ]}>
       <TouchableOpacity
         onPress={handleChat}
+        onLongPress={handleDelete}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onMouseEnter={handleMouseEnter}
@@ -137,6 +62,17 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
         activeOpacity={0.8}
       >
         <View style={styles.card}>
+          {/* Delete button - shows on hover */}
+          {isHovered && onDelete && (
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={handleDelete}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.deleteButtonText}>×</Text>
+            </TouchableOpacity>
+          )}
+
           {/* Content area with padding */}
           <View style={styles.contentArea}>
             {/* Book cover */}
@@ -203,27 +139,22 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
-    padding: 12,
-    paddingBottom: 8,
   },
   coverContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 8,
   },
   bookCover: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
-    maxWidth: 100,
-    maxHeight: 140,
+    borderRadius: 16,
   },
   coverPlaceholder: {
-    width: 100,
-    height: 140,
+    width: '100%',
+    height: '100%',
     backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 8,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -240,8 +171,8 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     padding: 8,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   overlayTitle: {
     fontSize: 12,
@@ -301,5 +232,33 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
     backgroundColor: theme.colors.blue,
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 68, 68, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    lineHeight: 16,
   },
 });

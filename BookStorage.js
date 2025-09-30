@@ -9,16 +9,6 @@ export const calculateProgress = (currentPage, totalPages) => {
   return Math.round((currentPage / totalPages) * 100);
 };
 
-// Helper function to get reading status
-export const getReadingStatus = (progress) => {
-  if (progress === 0) return 'Not started';
-  if (progress < 25) return 'Just started';
-  if (progress < 50) return 'Getting into it';
-  if (progress < 75) return 'Halfway through';
-  if (progress < 90) return 'Almost done';
-  if (progress < 100) return 'Nearly finished';
-  return 'Completed';
-};
 
 // Save books to storage
 export const saveBooks = async (books) => {
