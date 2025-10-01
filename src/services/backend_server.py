@@ -23,17 +23,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get API key from environment variable
+# Get API key from environment variable (only needed for chat, not summary)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-if not ANTHROPIC_API_KEY:
-    raise ValueError("ANTHROPIC_API_KEY environment variable not set!")
-
-# Initialize Anthropic client
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+# Initialize Anthropic client only if API key is available
+client = None
+if ANTHROPIC_API_KEY:
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # In-memory session storage (use Redis/database in production)
 sessions = {}
+
+# Session history storage for tracking last session summaries
+session_history = {}
 
 # Request/Response Models
 class BookData(BaseModel):
@@ -66,7 +68,49 @@ class SummaryResponse(BaseModel):
     session_id: str
     success: bool
 
-# Helper function
+class SaveSessionRequest(BaseModel):
+    session_id: str
+    book_data: BookData
+    conversation_summary: str
+
+class SaveSessionResponse(BaseModel):
+    success: bool
+    message: str
+
+# Helper functions
+def get_session_key(book_data: BookData) -> str:
+    """Generate a unique key for book sessions"""
+    return f"{book_data.title}_{book_data.author}"
+
+def generate_session_summary(conversation_history: List[Dict]) -> str:
+    """Generate a brief 1-2 sentence summary of the conversation"""
+    if not conversation_history:
+        return "No previous conversation found."
+    
+    # Extract key topics from the conversation
+    user_messages = [msg.get("text", "") for msg in conversation_history if msg.get("isUser", False)]
+    ai_messages = [msg.get("text", "") for msg in conversation_history if not msg.get("isUser", False)]
+    
+    # Simple keyword extraction for topics discussed
+    topics = []
+    for msg in user_messages[-5:]:  # Last 5 user messages
+        if any(word in msg.lower() for word in ["character", "plot", "theme", "chapter", "page"]):
+            if "character" in msg.lower():
+                topics.append("characters")
+            if "plot" in msg.lower():
+                topics.append("plot")
+            if "theme" in msg.lower():
+                topics.append("themes")
+    
+    if topics:
+        unique_topics = list(set(topics))
+        if len(unique_topics) == 1:
+            return f"Last time we discussed {unique_topics[0]}."
+        else:
+            return f"Last time we discussed {', '.join(unique_topics[:-1])} and {unique_topics[-1]}."
+    else:
+        return "Last time we had a general discussion about the book."
+
 def create_system_prompt(book_data: BookData) -> str:
     """Generate system prompt with book context"""
     return f"""You are Waddle, a friendly and knowledgeable AI assistant specializing in book discussions. You're helping a reader explore "{book_data.title}" by {book_data.author}.
@@ -95,6 +139,13 @@ async def root():
 async def chat_with_book(request: ChatRequest):
     """Handle chat messages about a book"""
     try:
+        if not client:
+            return ChatResponse(
+                message="I'm sorry, but the AI chat service is not available right now. Please check that your Claude API key is configured.",
+                session_id=request.session_id,
+                success=False
+            )
+        
         # Create system prompt
         system_prompt = create_system_prompt(request.book_data)
         
@@ -136,38 +187,52 @@ async def chat_with_book(request: ChatRequest):
         print(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
+@app.post("/api/save-session", response_model=SaveSessionResponse)
+async def save_session_summary(request: SaveSessionRequest):
+    """Save a session summary for future reference"""
+    try:
+        session_key = get_session_key(request.book_data)
+        session_history[session_key] = {
+            "book_data": request.book_data,
+            "conversation_summary": request.conversation_summary,
+            "timestamp": "now"  # In production, use actual timestamp
+        }
+        
+        return SaveSessionResponse(
+            success=True,
+            message="Session summary saved successfully"
+        )
+        
+    except Exception as e:
+        print(f"Error saving session: {e}")
+        return SaveSessionResponse(
+            success=False,
+            message=f"Error saving session: {str(e)}"
+        )
+
 @app.post("/api/summary", response_model=SummaryResponse)
 async def generate_summary(request: SummaryRequest):
     """Generate a personalized book summary"""
     try:
         book_data = request.book_data
+        session_key = get_session_key(book_data)
         
-        system_prompt = f"""You are Waddle, a friendly AI assistant. Generate a VERY SHORT welcome message for a reader continuing to read "{book_data.title}" by {book_data.author}.
-
-Context:
-- Current page: {book_data.currentPage} of {book_data.totalPages or 'Unknown'} ({book_data.progress or 0}% complete)
-
-CRITICAL REQUIREMENTS:
-- Write EXACTLY 3 sentences only
-- Each sentence should be short (under 15 words)
-- Total response must be under 50 words
-- Be warm but brief
-
-Format: "Welcome back to [book]! You're on page [X] of [Y]. What would you like to discuss?" """
-
-        # Call Claude API
-        response = client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=50,  # Very low token limit to force short responses
-            system=system_prompt,
-            messages=[{
-                "role": "user",
-                "content": "Generate a 3-sentence welcome message under 50 words total."
-            }]
-        )
-        
-        # Extract response
-        summary = response.content[0].text
+        # Generate a simple 3-sentence template-based summary
+        if book_data.progress == 0:
+            # First time opening the book
+            summary = f"Welcome to \"{book_data.title}\"! Any questions before we get started?"
+        else:
+            # Returning to the book - check for last session context
+            if session_key in session_history:
+                last_session = session_history[session_key]
+                last_summary = last_session.get("conversation_summary", "")
+                
+                if last_summary and last_summary != "No previous conversation found.":
+                    summary = f"Welcome back to \"{book_data.title}\"! {last_summary} What would you like to discuss today?"
+                else:
+                    summary = f"Welcome back to \"{book_data.title}\"! What would you like to discuss?"
+            else:
+                summary = f"Welcome back to \"{book_data.title}\"! What would you like to discuss?"
         
         return SummaryResponse(
             summary=summary,

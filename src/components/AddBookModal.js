@@ -14,8 +14,8 @@ import {
   Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import theme from './theme';
-import openLibraryAPI from './OpenLibraryAPI';
+import theme from '../constants/theme';
+import openLibraryAPI from '../services/OpenLibraryAPI';
 
 export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedAndNavigate }) {
   const [pageChapter, setPageChapter] = useState('');

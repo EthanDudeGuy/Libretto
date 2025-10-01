@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { useAuth } from './AuthContext';
-import theme from './theme';
+import { useAuth } from '../context/AuthContext';
+import theme from '../constants/theme';
 
 export default function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();

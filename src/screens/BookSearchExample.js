@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, Alert } from 'react-native';
-import googleBooksAPI from './GoogleBooksAPI';
-import theme from './theme';
+import googleBooksAPI from '../services/GoogleBooksAPI';
+import theme from '../constants/theme';
 
 export default function BookSearchExample() {
   const [searchQuery, setSearchQuery] = useState('');

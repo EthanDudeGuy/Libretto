@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Image } from 'react-native';
-import theme from './theme';
+import theme from '../constants/theme';
 
 export default function DeleteBookModal({ visible, onClose, onConfirm, book }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;

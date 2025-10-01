@@ -12,26 +12,23 @@ import {
   Image,
   PanResponder
 } from 'react-native';
-import theme from './theme';
-import { updateBook, calculateProgress } from './BookStorage';
-import SimpleBookImage from './SimpleBookImage';
-import { sendMessageToClaude, generateBookSummary } from './ClaudeAPI';
+import theme from '../constants/theme';
+import { updateBook, calculateProgress } from '../utils/BookStorage';
+import SimpleBookImage from '../components/SimpleBookImage';
+import CombinedGreetingModal from '../components/CombinedGreetingModal';
+import { sendMessageToClaude, generateBookSummary, saveSessionSummary } from '../services/ClaudeAPI';
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [showDuckGreeting, setShowDuckGreeting] = useState(true);
-  const [duckAnimationComplete, setDuckAnimationComplete] = useState(false);
   const [sessionSummary, setSessionSummary] = useState('');
   const [draggedLineIndex, setDraggedLineIndex] = useState(null);
   const [currentBook, setCurrentBook] = useState(book);
+  const [showCombinedModal, setShowCombinedModal] = useState(false);
   const scrollViewRef = useRef();
   
   // Animation values
-  const duckScale = useRef(new Animated.Value(0)).current;
-  const duckBounce = useRef(new Animated.Value(0)).current;
-  const textOpacity = useRef(new Animated.Value(0)).current;
   const pageFadeAnim = useRef(new Animated.Value(0)).current;
 
 
@@ -102,9 +99,9 @@ export default function BookChat({ book, onBack }) {
     }).start();
   }, [pageFadeAnim]);
 
-  // Load session summary when component mounts
+  // Load session summary and show combined modal when component mounts
   useEffect(() => {
-    const loadSummary = async () => {
+    const loadSummaryAndShowModal = async () => {
       try {
         const summary = await generateLastSessionSummary();
         setSessionSummary(summary);
@@ -113,81 +110,16 @@ export default function BookChat({ book, onBack }) {
         // Use a simple fallback message
         setSessionSummary(`Welcome to "${currentBook.title}"! What would you like to discuss?`);
       }
+      
+      // Show the combined modal after a short delay
+      setTimeout(() => {
+        setShowCombinedModal(true);
+      }, 800);
     };
-    loadSummary();
+    
+    loadSummaryAndShowModal();
   }, []);
 
-  // Duck animation sequence
-  useEffect(() => {
-    if (showDuckGreeting) {
-      // Duck entrance animation
-      Animated.sequence([
-        Animated.spring(duckScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 3,
-          useNativeDriver: true,
-        }),
-        Animated.timing(textOpacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      // Continuous bouncing animation
-      const bounceAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(duckBounce, {
-            toValue: -10,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(duckBounce, {
-            toValue: 0,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      bounceAnimation.start();
-
-      return () => {
-        bounceAnimation.stop();
-      };
-    }
-  }, [showDuckGreeting]);
-
-  const handleDismissDuck = () => {
-    Animated.parallel([
-      Animated.timing(duckScale, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(textOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setShowDuckGreeting(false);
-      setDuckAnimationComplete(true);
-      // Add the initial AI message after duck greeting
-      setMessages([{
-        id: '1',
-        text: `Now that you're caught up, what would you like to discuss about "${currentBook.title}"? I'm here to explore themes, characters, and plot points with you`,
-        isUser: false,
-        timestamp: new Date(),
-      }]);
-    });
-  };
-
-  useEffect(() => {
-    if (duckAnimationComplete) {
-      scrollToBottom();
-    }
-  }, [messages, duckAnimationComplete]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -230,6 +162,36 @@ export default function BookChat({ book, onBack }) {
         console.error('Error updating page:', error);
       }
     }
+  };
+
+  const handleUpdatePageFromModal = async (newPage) => {
+    try {
+      const newProgress = calculateProgress(newPage, currentBook.totalPages);
+      await updateBook(currentBook.id, { 
+        currentPage: newPage,
+        progress: newProgress
+      });
+      // Update the local book state for immediate UI update
+      setCurrentBook(prev => ({
+        ...prev,
+        currentPage: newPage,
+        progress: newProgress
+      }));
+    } catch (error) {
+      console.error('Error updating page from modal:', error);
+      throw error; // Re-throw so modal can handle the error
+    }
+  };
+
+  const handleCloseCombinedModal = () => {
+    setShowCombinedModal(false);
+    // Add the initial AI message after modal is closed
+    setMessages([{
+      id: '1',
+      text: `Now that you're caught up, what would you like to discuss about "${currentBook.title}"? I'm here to explore themes, characters, and plot points with you`,
+      isUser: false,
+      timestamp: new Date(),
+    }]);
   };
 
   // Create PanResponder for line dragging
@@ -339,7 +301,21 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-
+  const handleBack = async () => {
+    // Save session summary before going back
+    if (messages.length > 0) {
+      try {
+        await saveSessionSummary(currentBook, messages);
+        console.log('Session summary saved successfully');
+      } catch (error) {
+        console.error('Failed to save session summary:', error);
+        // Continue with back navigation even if saving fails
+      }
+    }
+    
+    // Call the original onBack function
+    onBack();
+  };
 
   const renderPageLines = () => {
     const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines for performance
@@ -396,7 +372,7 @@ export default function BookChat({ book, onBack }) {
         {!message.isUser && (
           <View style={styles.aiLogoContainer}>
             <Image 
-              source={require('./assets/duckbill.png')} 
+              source={require('../../assets/duckbill.png')} 
               style={styles.aiLogo}
               resizeMode="contain"
             />
@@ -424,14 +400,22 @@ export default function BookChat({ book, onBack }) {
         {/* Header Section with Back Button and Book Title */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <TouchableOpacity style={styles.backButtonModal} onPress={onBack}>
+            <TouchableOpacity style={styles.backButtonModal} onPress={handleBack}>
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerBookTitle}>{currentBook.title}</Text>
           </View>
-          <View style={styles.headerRight} />
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.pageNumberContainer}
+              onPress={() => setShowCombinedModal(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.pageNumber}>{currentBook.currentPage}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Progress Section */}
@@ -545,44 +529,6 @@ export default function BookChat({ book, onBack }) {
           <View style={styles.rightColumn}>
             {/* Chatbox - Large box on right side */}
             <View style={styles.chatContainer}>
-              {/* Duck Greeting Overlay */}
-              {showDuckGreeting && (
-                <View style={styles.duckGreetingOverlay}>
-                  <Animated.View 
-                    style={[
-                      styles.duckContainer,
-                      {
-                        transform: [
-                          { scale: duckScale },
-                          { translateY: duckBounce }
-                        ]
-                      }
-                    ]}
-                  >
-                    <Image 
-                      source={require('./assets/duckbill.png')} 
-                      style={styles.duckLogo}
-                      resizeMode="contain"
-                    />
-                  </Animated.View>
-                  <Animated.View 
-                    style={[
-                      styles.duckMessageContainer,
-                      { opacity: textOpacity }
-                    ]}
-                  >
-                    <Text style={styles.duckGreetingText}>
-                      {sessionSummary || 'Loading your reading summary...'}
-                    </Text>
-                    <TouchableOpacity 
-                      style={styles.continueButton}
-                      onPress={handleDismissDuck}
-                    >
-                      <Text style={styles.continueButtonText}>Continue discussion</Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-                </View>
-              )}
 
               <ScrollView
                 ref={scrollViewRef}
@@ -597,7 +543,7 @@ export default function BookChat({ book, onBack }) {
                     <View style={[styles.messageBubble, styles.aiBubble]}>
                       <View style={styles.aiLogoContainer}>
                         <Image 
-                          source={require('./assets/duckbill.png')} 
+                          source={require('../../assets/duckbill.png')} 
                           style={styles.aiLogo}
                           resizeMode="contain"
                         />
@@ -617,6 +563,8 @@ export default function BookChat({ book, onBack }) {
                   placeholderTextColor="rgba(255, 255, 255, 0.6)"
                   multiline
                   maxLength={500}
+                  onSubmitEditing={handleSendMessage}
+                  blurOnSubmit={false}
                 />
                 <TouchableOpacity
                   style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
@@ -630,6 +578,17 @@ export default function BookChat({ book, onBack }) {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Combined Greeting Modal */}
+      <CombinedGreetingModal
+        visible={showCombinedModal}
+        onClose={handleCloseCombinedModal}
+        currentPage={currentBook.currentPage}
+        totalPages={currentBook.totalPages}
+        onUpdatePage={handleUpdatePageFromModal}
+        bookTitle={currentBook.title}
+        greetingText={sessionSummary}
+      />
     </Animated.View>
   );
 }
@@ -654,6 +613,31 @@ const styles = StyleSheet.create({
   headerRight: {
     flex: 1,
     alignItems: 'flex-end',
+  },
+  pageNumberContainer: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    // Add subtle indication that it's clickable
+    borderColor: theme.colors.outline,
+  },
+  pageNumber: {
+    color: theme.colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+    textAlign: 'center',
   },
   backButtonModal: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -848,64 +832,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     overflow: 'hidden',
-  },
-  duckGreetingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(15, 20, 25, 0.96)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-    paddingHorizontal: 24,
-  },
-  duckContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  duckLogo: {
-    width: 80,
-    height: 80,
-  },
-  duckMessageContainer: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 20,
-    padding: 24,
-    maxWidth: '90%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-  },
-  duckGreetingText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-    fontFamily: 'Inter_500Medium',
-  },
-  continueButton: {
-    backgroundColor: theme.colors.blue,
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignSelf: 'center',
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
   },
   messagesContainer: {
     flex: 1,

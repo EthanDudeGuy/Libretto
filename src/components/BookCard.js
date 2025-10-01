@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import theme from './theme';
+import theme from '../constants/theme';
 
 export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
-  const { title, author, currentPage, totalPages, chapter, progress, pageChapter } = book;
+  const { currentPage, totalPages, chapter, progress, pageChapter } = book;
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -89,13 +89,6 @@ export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
                 </View>
               )}
               
-              {/* Title overlay - shows on hover or for books without covers */}
-              {(!book.thumbnail || isHovered) && (
-                <View style={styles.titleOverlay}>
-                  <Text style={styles.overlayTitle} numberOfLines={2}>{title}</Text>
-                  <Text style={styles.overlayAuthor} numberOfLines={1}>by {author}</Text>
-                </View>
-              )}
             </View>
           </View>
 
@@ -163,30 +156,6 @@ const styles = StyleSheet.create({
   placeholderText: {
     fontSize: 32,
     color: theme.colors.textMuted,
-  },
-  titleOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    padding: 8,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-  },
-  overlayTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
-    marginBottom: 2,
-  },
-  overlayAuthor: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    fontFamily: 'Inter_400Regular',
   },
   progressSection: {
     position: 'absolute',

@@ -12,29 +12,27 @@ import {
   Image
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from './AuthContext';
-import theme from './theme';
+import { useAuth } from '../context/AuthContext';
+import theme from '../constants/theme';
 
-export default function RegisterScreen({ onNavigateToLogin }) {
-  const [name, setName] = useState('');
+export default function LoginScreen({ onNavigateToRegister }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const { login } = useAuth();
 
-  const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     setIsLoading(true);
-    const result = await register(name.trim(), email.trim(), password, confirmPassword);
+    const result = await login(email.trim(), password);
     setIsLoading(false);
 
     if (!result.success) {
-      Alert.alert('Registration Failed', result.error);
+      Alert.alert('Login Failed', result.error);
     }
   };
 
@@ -52,29 +50,16 @@ export default function RegisterScreen({ onNavigateToLogin }) {
             {/* Logo and Title */}
             <View style={styles.header}>
               <Image 
-                source={require('./assets/logo.png')} 
+                source={require('../../assets/logo.png')} 
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Join Libretto</Text>
-              <Text style={styles.subtitle}>Create your account to start your literary journey</Text>
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>Sign in to your Libretto account</Text>
             </View>
 
             {/* Form */}
             <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Full Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Enter your full name"
-                  placeholderTextColor={theme.colors.textMuted}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-              </View>
-
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Email</Text>
                 <TextInput
@@ -95,21 +80,7 @@ export default function RegisterScreen({ onNavigateToLogin }) {
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Create a password (min 6 characters)"
-                  placeholderTextColor={theme.colors.textMuted}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm your password"
+                  placeholder="Enter your password"
                   placeholderTextColor={theme.colors.textMuted}
                   secureTextEntry
                   autoCapitalize="none"
@@ -118,21 +89,28 @@ export default function RegisterScreen({ onNavigateToLogin }) {
               </View>
 
               <TouchableOpacity
-                style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
-                onPress={handleRegister}
+                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                onPress={handleLogin}
                 disabled={isLoading}
               >
-                <Text style={styles.registerButtonText}>
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                <Text style={styles.loginButtonText}>
+                  {isLoading ? 'Signing In...' : 'Sign In'}
                 </Text>
               </TouchableOpacity>
             </View>
 
+            {/* Demo User Info */}
+            <View style={styles.demoInfo}>
+              <Text style={styles.demoText}>Demo User:</Text>
+              <Text style={styles.demoText}>Email: demo@libretto.com</Text>
+              <Text style={styles.demoText}>Password: demo123</Text>
+            </View>
+
             {/* Footer */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account?</Text>
-              <TouchableOpacity onPress={onNavigateToLogin}>
-                <Text style={styles.loginLink}>Sign In</Text>
+              <Text style={styles.footerText}>Don't have an account?</Text>
+              <TouchableOpacity onPress={onNavigateToRegister}>
+                <Text style={styles.registerLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -161,7 +139,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 48,
   },
   logo: {
     width: 80,
@@ -185,7 +163,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 16,
@@ -205,17 +183,17 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
     fontFamily: 'Inter_400Regular',
   },
-  registerButton: {
+  loginButton: {
     backgroundColor: theme.colors.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
   },
-  registerButtonDisabled: {
+  loginButtonDisabled: {
     backgroundColor: theme.colors.textMuted,
   },
-  registerButtonText: {
+  loginButtonText: {
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.textPrimary,
@@ -232,10 +210,24 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontFamily: 'Inter_400Regular',
   },
-  loginLink: {
+  registerLink: {
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.blue,
     fontFamily: 'Inter_600SemiBold',
+  },
+  demoInfo: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  demoText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
   },
 });

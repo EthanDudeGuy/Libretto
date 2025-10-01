@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Image } from 'react-native';
-import theme from './theme';
+import theme from '../constants/theme';
 
 export default function SimpleBookImage({ book }) {
   return (

@@ -75,7 +75,6 @@ export const AuthProvider = ({ children }) => {
       const userData = {
         id: foundUser.id,
         email: foundUser.email,
-        name: foundUser.name,
         createdAt: foundUser.createdAt
       };
 
@@ -87,11 +86,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, confirmPassword) => {
+  const register = async (email, password, confirmPassword) => {
     try {
       // Validation
-      if (!name || !email || !password || !confirmPassword) {
-        throw new Error('All fields are required');
+      if (!email || !password || !confirmPassword) {
+        throw new Error('Email and password are required');
       }
 
       if (password !== confirmPassword) {
@@ -114,7 +113,6 @@ export const AuthProvider = ({ children }) => {
       // Create new user
       const newUser = {
         id: Date.now().toString(),
-        name,
         email,
         password, // In production, this should be hashed
         createdAt: new Date().toISOString()
@@ -127,7 +125,6 @@ export const AuthProvider = ({ children }) => {
       const userData = {
         id: newUser.id,
         email: newUser.email,
-        name: newUser.name,
         createdAt: newUser.createdAt
       };
 
@@ -142,15 +139,39 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       console.log('Logout: Starting logout process...');
+      console.log('Logout: Current user state:', user);
+      
+      // Clear user data from AsyncStorage
       await AsyncStorage.removeItem('user');
       console.log('Logout: Removed user from AsyncStorage');
-      setUser(null);
-      console.log('Logout: Set user to null, isAuthenticated should now be false');
       
-      // Force a small delay to ensure state update propagates
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Clear user state
+      setUser(null);
+      console.log('Logout: Set user to null');
+      
+      // Force a state update by setting loading briefly
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      setIsLoading(false);
+      
+      console.log('Logout: Logout process completed');
     } catch (error) {
       console.error('Error during logout:', error);
+      // Even if there's an error, try to clear the state
+      setUser(null);
+    }
+  };
+
+  const forceLogout = async () => {
+    try {
+      console.log('Force Logout: Clearing all authentication data...');
+      await AsyncStorage.multiRemove(['user', 'users']);
+      setUser(null);
+      setIsLoading(false);
+      console.log('Force Logout: All data cleared');
+    } catch (error) {
+      console.error('Error during force logout:', error);
+      setUser(null);
     }
   };
 
@@ -160,6 +181,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    forceLogout,
     isAuthenticated: !!user
   };
 

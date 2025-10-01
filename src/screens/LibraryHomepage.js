@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, Alert, Image, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
-import theme from './theme';
-import BookCard from './BookCard';
-import AddBookModal from './AddBookModal';
-import DeleteBookModal from './DeleteBookModal';
-import { loadBooks, saveBooks, addBook, updateBook, deleteBook as deleteBookFromStorage } from './BookStorage';
-import { useAuth } from './AuthContext';
+import theme from '../constants/theme';
+import BookCard from '../components/BookCard';
+import AddBookModal from '../components/AddBookModal';
+import DeleteBookModal from '../components/DeleteBookModal';
+import { loadBooks, saveBooks, addBook, updateBook, deleteBook as deleteBookFromStorage } from '../utils/BookStorage';
+import { useAuth } from '../context/AuthContext';
 
 
 export default function Homepage({ onNavigateToChat }) {
@@ -20,7 +20,7 @@ export default function Homepage({ onNavigateToChat }) {
   const spinValue = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const { logout, user } = useAuth();
+  const { logout, forceLogout, user } = useAuth();
 
   // Load books from storage on component mount
   useEffect(() => {
@@ -170,6 +170,51 @@ export default function Homepage({ onNavigateToChat }) {
     );
   };
 
+  const handleForceLogout = () => {
+    Alert.alert(
+      "Force Logout",
+      "This will clear all authentication data and force you back to the login screen. Use this if regular logout isn't working.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Force Logout", 
+          style: "destructive",
+          onPress: async () => {
+            setShowSettings(false);
+            await forceLogout();
+          }
+        }
+      ]
+    );
+  };
+
+  const handleClearAllData = async () => {
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.multiRemove(['user', 'users']);
+      Alert.alert("Success", "All authentication data cleared! The app should restart to login screen.");
+      // Force app restart by setting user to null
+      setUser(null);
+    } catch (error) {
+      Alert.alert("Error", "Failed to clear data: " + error.message);
+    }
+  };
+
+  const handleDebugAuth = async () => {
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      const userData = await AsyncStorage.getItem('user');
+      const usersData = await AsyncStorage.getItem('users');
+      
+      Alert.alert(
+        "Debug Info", 
+        `Current User: ${user ? JSON.stringify(user, null, 2) : 'null'}\n\nStored User: ${userData || 'null'}\n\nAll Users: ${usersData ? JSON.parse(usersData).length + ' users' : 'null'}`
+      );
+    } catch (error) {
+      Alert.alert("Debug Error", error.message);
+    }
+  };
+
   const renderBook = ({ item }) => (
     <View style={styles.bookCardContainer}>
       <BookCard 
@@ -192,7 +237,7 @@ export default function Homepage({ onNavigateToChat }) {
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
               <Image 
-                source={require('./assets/logo.png')} 
+                source={require('../../assets/logo.png')} 
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -234,7 +279,7 @@ export default function Homepage({ onNavigateToChat }) {
                 onPress={() => setShowSettings(true)}
               >
                 <Image 
-                source={require('./assets/setting.png')} 
+                source={require('../../assets/setting.png')} 
                 style={styles.settingsIcon}
                 resizeMode="contain"
                 tintColor={theme.colors.textPrimary}
@@ -292,6 +337,18 @@ export default function Homepage({ onNavigateToChat }) {
             
             <TouchableOpacity style={styles.settingsOption} onPress={handleLogout}>
               <Text style={styles.settingsOptionText}>🚪 Logout</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.settingsOption} onPress={handleForceLogout}>
+              <Text style={styles.settingsOptionText}>🔧 Force Logout</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.settingsOption, { backgroundColor: '#ff4444' }]} onPress={handleClearAllData}>
+              <Text style={[styles.settingsOptionText, { color: 'white' }]}>🚨 Emergency Clear Data</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.settingsOption, { backgroundColor: '#666' }]} onPress={handleDebugAuth}>
+              <Text style={[styles.settingsOptionText, { color: 'white' }]}>🔍 Debug Auth State</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 

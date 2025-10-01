@@ -12,27 +12,28 @@ import {
   Image
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from './AuthContext';
-import theme from './theme';
+import { useAuth } from '../context/AuthContext';
+import theme from '../constants/theme';
 
-export default function LoginScreen({ onNavigateToRegister }) {
+export default function RegisterScreen({ onNavigateToLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { register } = useAuth();
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+  const handleRegister = async () => {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     setIsLoading(true);
-    const result = await login(email.trim(), password);
+    const result = await register(email.trim(), password, confirmPassword);
     setIsLoading(false);
 
     if (!result.success) {
-      Alert.alert('Login Failed', result.error);
+      Alert.alert('Registration Failed', result.error);
     }
   };
 
@@ -50,12 +51,12 @@ export default function LoginScreen({ onNavigateToRegister }) {
             {/* Logo and Title */}
             <View style={styles.header}>
               <Image 
-                source={require('./assets/logo.png')} 
+                source={require('../../assets/logo.png')} 
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in to your Libretto account</Text>
+              <Text style={styles.title}>Join Libretto</Text>
+              <Text style={styles.subtitle}>Create your account to start your literary journey</Text>
             </View>
 
             {/* Form */}
@@ -80,7 +81,21 @@ export default function LoginScreen({ onNavigateToRegister }) {
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Enter your password"
+                  placeholder="Create a password (min 6 characters)"
+                  placeholderTextColor={theme.colors.textMuted}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Confirm your password"
                   placeholderTextColor={theme.colors.textMuted}
                   secureTextEntry
                   autoCapitalize="none"
@@ -89,28 +104,21 @@ export default function LoginScreen({ onNavigateToRegister }) {
               </View>
 
               <TouchableOpacity
-                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-                onPress={handleLogin}
+                style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
+                onPress={handleRegister}
                 disabled={isLoading}
               >
-                <Text style={styles.loginButtonText}>
-                  {isLoading ? 'Signing In...' : 'Sign In'}
+                <Text style={styles.registerButtonText}>
+                  {isLoading ? 'Creating Account...' : 'Create Account'}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Demo User Info */}
-            <View style={styles.demoInfo}>
-              <Text style={styles.demoText}>Demo User:</Text>
-              <Text style={styles.demoText}>Email: demo@libretto.com</Text>
-              <Text style={styles.demoText}>Password: demo123</Text>
-            </View>
-
             {/* Footer */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account?</Text>
-              <TouchableOpacity onPress={onNavigateToRegister}>
-                <Text style={styles.registerLink}>Sign Up</Text>
+              <Text style={styles.footerText}>Already have an account?</Text>
+              <TouchableOpacity onPress={onNavigateToLogin}>
+                <Text style={styles.loginLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -139,7 +147,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
   },
   logo: {
     width: 80,
@@ -163,7 +171,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
     fontSize: 16,
@@ -183,17 +191,17 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderSubtle,
     fontFamily: 'Inter_400Regular',
   },
-  loginButton: {
+  registerButton: {
     backgroundColor: theme.colors.blue,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
   },
-  loginButtonDisabled: {
+  registerButtonDisabled: {
     backgroundColor: theme.colors.textMuted,
   },
-  loginButtonText: {
+  registerButtonText: {
     fontSize: 18,
     fontWeight: '600',
     color: theme.colors.textPrimary,
@@ -210,24 +218,10 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontFamily: 'Inter_400Regular',
   },
-  registerLink: {
+  loginLink: {
     fontSize: 16,
     fontWeight: '600',
     color: theme.colors.blue,
     fontFamily: 'Inter_600SemiBold',
-  },
-  demoInfo: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  demoText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
   },
 });
