@@ -23,13 +23,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get API key from environment variable (only needed for chat, not summary)
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# Get API key from environment variable or hardcode it here
+# Option 1: Set environment variable: export ANTHROPIC_API_KEY=your_key_here
+# Option 2: Replace 'your_api_key_here' below with your actual Claude API key
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") or "your_api_key_here"
 
-# Initialize Anthropic client only if API key is available
+# Initialize Anthropic client only if API key is available and not placeholder
 client = None
-if ANTHROPIC_API_KEY:
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != "your_api_key_here":
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        print("✅ Claude API client initialized successfully")
+    except Exception as e:
+        print(f"❌ Failed to initialize Claude API client: {e}")
+        client = None
+else:
+    print("⚠️  Claude API key not configured. Please set ANTHROPIC_API_KEY environment variable or update the code.")
 
 # In-memory session storage (use Redis/database in production)
 sessions = {}
@@ -48,11 +57,17 @@ class BookData(BaseModel):
     categories: Optional[List[str]] = []
     description: Optional[str] = "No description available."
 
+class UserData(BaseModel):
+    firstName: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+
 class ChatRequest(BaseModel):
     session_id: str
     message: str
     book_data: BookData
     conversation_history: Optional[List[Dict]] = []
+    user: Optional[UserData] = None
 
 class ChatResponse(BaseModel):
     message: str
@@ -62,6 +77,7 @@ class ChatResponse(BaseModel):
 class SummaryRequest(BaseModel):
     session_id: str
     book_data: BookData
+    user: Optional[UserData] = None
 
 class SummaryResponse(BaseModel):
     summary: str
@@ -111,9 +127,11 @@ def generate_session_summary(conversation_history: List[Dict]) -> str:
     else:
         return "Last time we had a general discussion about the book."
 
-def create_system_prompt(book_data: BookData) -> str:
+def create_system_prompt(book_data: BookData, user_data: Optional[UserData] = None) -> str:
     """Generate system prompt with book context"""
-    return f"""You are Waddle, a friendly and knowledgeable AI assistant specializing in book discussions. You're helping a reader explore "{book_data.title}" by {book_data.author}.
+    user_name = user_data.firstName if user_data and user_data.firstName else "reader"
+    
+    return f"""You are Waddle, a friendly and knowledgeable AI assistant specializing in book discussions. You're helping {user_name} explore "{book_data.title}" by {book_data.author}.
 
 Book Context:
 - Current page: {book_data.currentPage} of {book_data.totalPages or 'Unknown'} ({book_data.progress or 0}% complete)
@@ -127,7 +145,7 @@ Guidelines:
 4. Ask thoughtful questions to deepen understanding
 5. Reference specific passages or moments when relevant
 6. Keep responses concise but insightful (2 paragraphs max)
-7. Use the reader's name if provided, otherwise use friendly terms like "reader" or "you"
+7. Address the reader by name ({user_name}) to create a personal connection
 
 Remember: You're discussing a book, so maintain an academic yet accessible tone."""
 
@@ -143,11 +161,11 @@ async def chat_with_book(request: ChatRequest):
             return ChatResponse(
                 message="I'm sorry, but the AI chat service is not available right now. Please check that your Claude API key is configured.",
                 session_id=request.session_id,
-                success=False
+                success=True  # Return success=True but with error message
             )
         
         # Create system prompt
-        system_prompt = create_system_prompt(request.book_data)
+        system_prompt = create_system_prompt(request.book_data, request.user)
         
         # Prepare messages for Claude
         messages = []
@@ -185,7 +203,11 @@ async def chat_with_book(request: ChatRequest):
         
     except Exception as e:
         print(f"Error in chat endpoint: {e}")
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+        return ChatResponse(
+            message=f"I'm sorry, but I encountered an error: {str(e)}",
+            session_id=request.session_id,
+            success=True  # Return success=True but with error message
+        )
 
 @app.post("/api/save-session", response_model=SaveSessionResponse)
 async def save_session_summary(request: SaveSessionRequest):
@@ -215,12 +237,14 @@ async def generate_summary(request: SummaryRequest):
     """Generate a personalized book summary"""
     try:
         book_data = request.book_data
+        user_data = request.user
         session_key = get_session_key(book_data)
+        user_name = user_data.firstName if user_data and user_data.firstName else "there"
         
         # Generate a simple 3-sentence template-based summary
         if book_data.progress == 0:
             # First time opening the book
-            summary = f"Welcome to \"{book_data.title}\"! Any questions before we get started?"
+            summary = f"Welcome to \"{book_data.title}\", {user_name}! Any questions before we get started?"
         else:
             # Returning to the book - check for last session context
             if session_key in session_history:
@@ -228,11 +252,11 @@ async def generate_summary(request: SummaryRequest):
                 last_summary = last_session.get("conversation_summary", "")
                 
                 if last_summary and last_summary != "No previous conversation found.":
-                    summary = f"Welcome back to \"{book_data.title}\"! {last_summary} What would you like to discuss today?"
+                    summary = f"Welcome back to \"{book_data.title}\", {user_name}! {last_summary} What would you like to discuss today?"
                 else:
-                    summary = f"Welcome back to \"{book_data.title}\"! What would you like to discuss?"
+                    summary = f"Welcome back to \"{book_data.title}\", {user_name}! What would you like to discuss?"
             else:
-                summary = f"Welcome back to \"{book_data.title}\"! What would you like to discuss?"
+                summary = f"Welcome back to \"{book_data.title}\", {user_name}! What would you like to discuss?"
         
         return SummaryResponse(
             summary=summary,
@@ -242,7 +266,11 @@ async def generate_summary(request: SummaryRequest):
         
     except Exception as e:
         print(f"Error in summary endpoint: {e}")
-        raise HTTPException(status_code=500, detail=f"Summary error: {str(e)}")
+        return SummaryResponse(
+            summary=f"Welcome to \"{book_data.title}\"! I'm having trouble generating a summary right now, but feel free to ask me anything about the book.",
+            session_id=request.session_id,
+            success=True  # Return success=True but with fallback message
+        )
 
 @app.get("/api/health")
 async def health_check():
@@ -255,4 +283,15 @@ if __name__ == "__main__":
     print("📡 API will be available at: http://localhost:8000")
     print("📚 Chat endpoint: http://localhost:8000/api/chat")
     print("📖 Summary endpoint: http://localhost:8000/api/summary")
+    
+    if client:
+        print("🤖 Claude API is configured and ready!")
+    else:
+        print("⚠️  Claude API key not configured - chat features will be disabled")
+        print("   To fix this:")
+        print("   1. Get your API key from: https://console.anthropic.com/")
+        print("   2. Either:")
+        print("      - Set environment variable: export ANTHROPIC_API_KEY=your_key_here")
+        print("      - Or edit line 29 in this file and replace 'your_api_key_here' with your actual key")
+    
     uvicorn.run(app, host="0.0.0.0", port=8000)

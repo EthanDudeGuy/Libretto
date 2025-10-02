@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import theme from '../constants/theme';
 
 export default function RegisterScreen({ onNavigateToLogin }) {
+  const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,13 +24,13 @@ export default function RegisterScreen({ onNavigateToLogin }) {
   const { register } = useAuth();
 
   const handleRegister = async () => {
-    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (!firstName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     setIsLoading(true);
-    const result = await register(email.trim(), password, confirmPassword);
+    const result = await register(firstName.trim(), email.trim(), password, confirmPassword);
     setIsLoading(false);
 
     if (!result.success) {
@@ -61,6 +62,19 @@ export default function RegisterScreen({ onNavigateToLogin }) {
 
             {/* Form */}
             <View style={styles.form}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>First Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="Enter your first name"
+                  placeholderTextColor={theme.colors.textMuted}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Email</Text>
                 <TextInput

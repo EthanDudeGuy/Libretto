@@ -41,6 +41,7 @@ export const AuthProvider = ({ children }) => {
       if (!users) {
         const demoUser = {
           id: 'demo-user-1',
+          firstName: 'Demo',
           name: 'Demo User',
           email: 'demo@libretto.com',
           password: 'demo123',
@@ -74,6 +75,8 @@ export const AuthProvider = ({ children }) => {
       // Store user data (excluding password)
       const userData = {
         id: foundUser.id,
+        firstName: foundUser.firstName,
+        name: foundUser.name,
         email: foundUser.email,
         createdAt: foundUser.createdAt
       };
@@ -86,11 +89,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (email, password, confirmPassword) => {
+  const register = async (firstName, email, password, confirmPassword) => {
     try {
       // Validation
-      if (!email || !password || !confirmPassword) {
-        throw new Error('Email and password are required');
+      if (!firstName || !email || !password || !confirmPassword) {
+        throw new Error('All fields are required');
+      }
+
+      if (firstName.trim().length < 2) {
+        throw new Error('First name must be at least 2 characters');
       }
 
       if (password !== confirmPassword) {
@@ -113,6 +120,8 @@ export const AuthProvider = ({ children }) => {
       // Create new user
       const newUser = {
         id: Date.now().toString(),
+        firstName: firstName.trim(),
+        name: firstName.trim() + ' User', // For backwards compatibility
         email,
         password, // In production, this should be hashed
         createdAt: new Date().toISOString()
@@ -124,6 +133,8 @@ export const AuthProvider = ({ children }) => {
       // Auto-login after registration
       const userData = {
         id: newUser.id,
+        firstName: newUser.firstName,
+        name: newUser.name,
         email: newUser.email,
         createdAt: newUser.createdAt
       };
@@ -138,23 +149,16 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      console.log('Logout: Starting logout process...');
-      console.log('Logout: Current user state:', user);
-      
       // Clear user data from AsyncStorage
       await AsyncStorage.removeItem('user');
-      console.log('Logout: Removed user from AsyncStorage');
       
       // Clear user state
       setUser(null);
-      console.log('Logout: Set user to null');
       
       // Force a state update by setting loading briefly
       setIsLoading(true);
       await new Promise(resolve => setTimeout(resolve, 50));
       setIsLoading(false);
-      
-      console.log('Logout: Logout process completed');
     } catch (error) {
       console.error('Error during logout:', error);
       // Even if there's an error, try to clear the state

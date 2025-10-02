@@ -5,8 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import theme from '../constants/theme';
 import BookCard from '../components/BookCard';
 import AddBookModal from '../components/AddBookModal';
-import DeleteBookModal from '../components/DeleteBookModal';
-import { loadBooks, saveBooks, addBook, updateBook, deleteBook as deleteBookFromStorage } from '../utils/BookStorage';
+import { loadBooks, saveBooks, addBook, updateBook } from '../utils/BookStorage';
 import { useAuth } from '../context/AuthContext';
 
 
@@ -14,13 +13,12 @@ export default function Homepage({ onNavigateToChat }) {
   const [books, setBooks] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showAddBookModal, setShowAddBookModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [bookToDelete, setBookToDelete] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
   const spinValue = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const { logout, forceLogout, user } = useAuth();
+  const { logout, user } = useAuth();
 
   // Load books from storage on component mount
   useEffect(() => {
@@ -105,27 +103,6 @@ export default function Homepage({ onNavigateToChat }) {
     }
   };
 
-  const deleteBook = (bookId) => {
-    const book = books.find(b => b.id === bookId);
-    if (book) {
-      setBookToDelete(book);
-      setShowDeleteModal(true);
-    }
-  };
-
-  const confirmDelete = async () => {
-    if (!bookToDelete) return;
-    
-    try {
-      const updatedBooks = await deleteBookFromStorage(bookToDelete.id);
-      setBooks(updatedBooks);
-    } catch (error) {
-      console.error('Error deleting book:', error);
-      Alert.alert('Error', 'Failed to delete book');
-    } finally {
-      setBookToDelete(null);
-    }
-  };
 
   const handleChatWithBook = (book) => {
     // Start fade out and scale animation
@@ -153,67 +130,20 @@ export default function Homepage({ onNavigateToChat }) {
   }, [fadeAnim, scaleAnim]);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Logout", 
-          style: "destructive",
-          onPress: async () => {
-            setShowSettings(false);
-            await logout();
-          }
-        }
-      ]
-    );
+    setShowSettings(false);
+    setShowLogoutConfirm(true);
   };
 
-  const handleForceLogout = () => {
-    Alert.alert(
-      "Force Logout",
-      "This will clear all authentication data and force you back to the login screen. Use this if regular logout isn't working.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Force Logout", 
-          style: "destructive",
-          onPress: async () => {
-            setShowSettings(false);
-            await forceLogout();
-          }
-        }
-      ]
-    );
+  const confirmLogout = async () => {
+    setShowLogoutConfirm(false);
+    await logout();
   };
 
-  const handleClearAllData = async () => {
-    try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      await AsyncStorage.multiRemove(['user', 'users']);
-      Alert.alert("Success", "All authentication data cleared! The app should restart to login screen.");
-      // Force app restart by setting user to null
-      setUser(null);
-    } catch (error) {
-      Alert.alert("Error", "Failed to clear data: " + error.message);
-    }
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
+    setShowSettings(true);
   };
 
-  const handleDebugAuth = async () => {
-    try {
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      const userData = await AsyncStorage.getItem('user');
-      const usersData = await AsyncStorage.getItem('users');
-      
-      Alert.alert(
-        "Debug Info", 
-        `Current User: ${user ? JSON.stringify(user, null, 2) : 'null'}\n\nStored User: ${userData || 'null'}\n\nAll Users: ${usersData ? JSON.parse(usersData).length + ' users' : 'null'}`
-      );
-    } catch (error) {
-      Alert.alert("Debug Error", error.message);
-    }
-  };
 
   const renderBook = ({ item }) => (
     <View style={styles.bookCardContainer}>
@@ -221,7 +151,6 @@ export default function Homepage({ onNavigateToChat }) {
         book={item} 
         onUpdateBookmark={updateBookmark}
         onChat={handleChatWithBook}
-        onDelete={deleteBook}
       />
     </View>
   );
@@ -244,7 +173,7 @@ export default function Homepage({ onNavigateToChat }) {
               <View>
                 <Text style={styles.title}>Libretto</Text>
                 {user && (
-                  <Text style={styles.welcomeText}>Welcome, {user.name}</Text>
+                  <Text style={styles.welcomeText}>Welcome, {user.firstName || user.name}</Text>
                 )}
               </View>
             </View>
@@ -335,20 +264,11 @@ export default function Homepage({ onNavigateToChat }) {
           <View style={styles.settingsModal}>
             <Text style={styles.settingsTitle}>Settings</Text>
             
-            <TouchableOpacity style={styles.settingsOption} onPress={handleLogout}>
-              <Text style={styles.settingsOptionText}>🚪 Logout</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.settingsOption} onPress={handleForceLogout}>
-              <Text style={styles.settingsOptionText}>🔧 Force Logout</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.settingsOption, { backgroundColor: '#ff4444' }]} onPress={handleClearAllData}>
-              <Text style={[styles.settingsOptionText, { color: 'white' }]}>🚨 Emergency Clear Data</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={[styles.settingsOption, { backgroundColor: '#666' }]} onPress={handleDebugAuth}>
-              <Text style={[styles.settingsOptionText, { color: 'white' }]}>🔍 Debug Auth State</Text>
+            <TouchableOpacity 
+              style={[styles.settingsOption, { backgroundColor: '#ff6b6b', borderColor: '#ff5252' }]} 
+              onPress={handleLogout}
+            >
+              <Text style={[styles.settingsOptionText, { color: 'white', fontWeight: 'bold' }]}>🚪 Logout</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -368,15 +288,36 @@ export default function Homepage({ onNavigateToChat }) {
         onBookAddedAndNavigate={handleBookAddedAndNavigate}
       />
 
-      <DeleteBookModal
-        visible={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setBookToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        book={bookToDelete}
-      />
+      {/* Custom Logout Confirmation Modal */}
+      <Modal
+        visible={showLogoutConfirm}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelLogout}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.settingsModal}>
+            <Text style={styles.settingsTitle}>Confirm Logout</Text>
+            <Text style={[styles.settingsOptionText, { marginBottom: 20, textAlign: 'center' }]}>
+              Are you sure you want to logout?
+            </Text>
+            
+            <TouchableOpacity 
+              style={[styles.settingsOption, { backgroundColor: '#ff6b6b', borderColor: '#ff5252' }]} 
+              onPress={confirmLogout}
+            >
+              <Text style={[styles.settingsOptionText, { color: 'white', fontWeight: 'bold' }]}>🚪 Logout</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.cancelButton} 
+              onPress={cancelLogout}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

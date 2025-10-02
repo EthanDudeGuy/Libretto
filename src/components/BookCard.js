@@ -3,7 +3,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Animated } from 'react
 import { LinearGradient } from 'expo-linear-gradient';
 import theme from '../constants/theme';
 
-export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
+export default function BookCard({ book, onUpdateBookmark, onChat }) {
   const { currentPage, totalPages, chapter, progress, pageChapter } = book;
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -37,10 +37,6 @@ export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
     if (onChat) onChat(book);
   };
 
-  const handleDelete = (e) => {
-    e.stopPropagation(); // Prevent triggering the chat function
-    if (onDelete) onDelete(book.id);
-  };
 
 
   return (
@@ -54,7 +50,6 @@ export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
     ]}>
       <TouchableOpacity
         onPress={handleChat}
-        onLongPress={handleDelete}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onMouseEnter={handleMouseEnter}
@@ -62,16 +57,6 @@ export default function BookCard({ book, onUpdateBookmark, onChat, onDelete }) {
         activeOpacity={0.8}
       >
         <View style={styles.card}>
-          {/* Delete button - shows on hover */}
-          {isHovered && onDelete && (
-            <TouchableOpacity 
-              style={styles.deleteButton}
-              onPress={handleDelete}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.deleteButtonText}>×</Text>
-            </TouchableOpacity>
-          )}
 
           {/* Content area with padding */}
           <View style={styles.contentArea}>
@@ -201,33 +186,5 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
     backgroundColor: theme.colors.blue,
-  },
-  deleteButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 68, 68, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-    borderWidth: 1,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    lineHeight: 16,
   },
 });

@@ -9,26 +9,30 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image
+  Image,
+  ImageBackground,
+  Dimensions
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import theme from '../constants/theme';
 
+const { width, height } = Dimensions.get('window');
+
 export default function LoginScreen({ onNavigateToRegister }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('demo@libretto.com');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email');
       return;
     }
 
     setIsLoading(true);
-    const result = await login(email.trim(), password);
+    const result = await login(email.trim(), 'demo123'); // Using demo password
     setIsLoading(false);
 
     if (!result.success) {
@@ -36,86 +40,100 @@ export default function LoginScreen({ onNavigateToRegister }) {
     }
   };
 
+
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <LinearGradient
-          colors={[theme.colors.background, theme.colors.surface]}
-          style={styles.gradient}
-        >
-          <View style={styles.content}>
-            {/* Logo and Title */}
-            <View style={styles.header}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logo}
-                resizeMode="contain"
-              />
-              <Text style={styles.title}>Welcome Back</Text>
-              <Text style={styles.subtitle}>Sign in to your Libretto account</Text>
-            </View>
+      <ImageBackground
+        source={require('../../assets/loginwallpaper.png')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {/* Dark overlay for better text readability */}
+          <View style={styles.overlay} />
 
-            {/* Form */}
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Enter your email"
-                  placeholderTextColor={theme.colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
+        {/* Glass Card */}
+        <View style={styles.glassCard}>
+          <View style={styles.blurContainer}>
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
+              style={styles.glassGradient}
+            >
+              {/* Logo */}
+              <View style={styles.logoContainer}>
+                <Image 
+                  source={require('../../assets/logo.png')} 
+                  style={styles.logo}
+                  resizeMode="contain"
                 />
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Enter your password"
-                  placeholderTextColor={theme.colors.textMuted}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+              {/* Welcome Text */}
+              <Text style={styles.welcomeTitle}>Welcome,</Text>
+              <Text style={styles.welcomeSubtitle}>Login to Libretto</Text>
+
+              {/* Email Input */}
+              <View style={styles.emailContainer}>
+                <Text style={styles.emailLabel}>Email</Text>
+                <View style={styles.emailInputRow}>
+                  <View style={styles.emailInputBlur}>
+                    <TextInput
+                      style={styles.emailInput}
+                      value={email}
+                      onChangeText={setEmail}
+                      placeholder="Enter your email"
+                      placeholderTextColor="rgba(255, 255, 255, 0.44)"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.arrowButton}
+                    onPress={handleLogin}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.arrowIcon}>→</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <TouchableOpacity
-                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-                onPress={handleLogin}
-                disabled={isLoading}
-              >
-                <Text style={styles.loginButtonText}>
-                  {isLoading ? 'Signing In...' : 'Sign In'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+              {/* Remember Me */}
+              <View style={styles.rememberMeContainer}>
+                <TouchableOpacity 
+                  style={styles.checkboxContainer}
+                  onPress={() => setRememberMe(!rememberMe)}
+                >
+                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                    {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.rememberMeText}>Remember me</Text>
+                </TouchableOpacity>
+              </View>
 
-            {/* Demo User Info */}
-            <View style={styles.demoInfo}>
-              <Text style={styles.demoText}>Demo User:</Text>
-              <Text style={styles.demoText}>Email: demo@libretto.com</Text>
-              <Text style={styles.demoText}>Password: demo123</Text>
-            </View>
+              {/* Demo Info */}
+              <View style={styles.demoInfo}>
+                <Text style={styles.demoTitle}>Demo Account</Text>
+                <Text style={styles.demoText}>Email: demo@libretto.com</Text>
+                <Text style={styles.demoText}>Password: demo123</Text>
+                <Text style={styles.demoNote}>Click the arrow button to login</Text>
+              </View>
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account?</Text>
-              <TouchableOpacity onPress={onNavigateToRegister}>
-                <Text style={styles.registerLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
+              {/* Footer */}
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Don't have an account? </Text>
+                <TouchableOpacity onPress={onNavigateToRegister}>
+                  <Text style={styles.createAccountLink}>Sign up</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
           </View>
-        </LinearGradient>
-      </ScrollView>
+        </View>
+        </ScrollView>
+      </ImageBackground>
     </KeyboardAvoidingView>
   );
 }
@@ -123,111 +141,213 @@ export default function LoginScreen({ onNavigateToRegister }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   scrollContainer: {
     flexGrow: 1,
-  },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  header: {
     alignItems: 'center',
-    marginBottom: 48,
+    paddingHorizontal: theme.spacing.x2_5,
+    paddingVertical: theme.spacing.x5,
+  },
+  // Dark overlay for better text readability
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 20, 25, 0.4)', // Semi-transparent dark overlay
+  },
+  // Glass Card
+  glassCard: {
+    width: width * 0.9,
+    maxWidth: 400,
+    borderRadius: theme.radii.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  blurContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(19, 26, 33, 0.8)', // More transparent to show background
+  },
+  glassGradient: {
+    padding: theme.spacing.x4,
+    paddingTop: theme.spacing.x5,
+  },
+  // Logo
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.x4,
   },
   logo: {
     width: 80,
     height: 80,
-    marginBottom: 24,
   },
-  title: {
-    fontSize: 32,
+  // Welcome Text
+  welcomeTitle: {
+    fontSize: theme.typography.xxl,
     fontWeight: 'bold',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
-    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
+    marginBottom: theme.spacing.x1,
+    fontFamily: theme.typography.fontFamilyBold,
   },
-  subtitle: {
-    fontSize: 16,
+  welcomeSubtitle: {
+    fontSize: theme.typography.md,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    fontFamily: 'Inter_400Regular',
+    marginBottom: theme.spacing.x4,
+    fontFamily: theme.typography.fontFamily,
   },
-  form: {
-    marginBottom: 32,
+  // Email Input
+  emailContainer: {
+    marginBottom: theme.spacing.x2_5,
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
+  emailLabel: {
+    fontSize: theme.typography.md,
     color: theme.colors.textPrimary,
-    marginBottom: 8,
-    fontFamily: 'Inter_600SemiBold',
+    marginBottom: theme.spacing.x1_5,
+    fontFamily: theme.typography.fontFamilyMedium,
   },
-  input: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+  emailInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.x1_5,
+  },
+  emailInputBlur: {
+    flex: 1,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  emailInput: {
+    paddingHorizontal: theme.spacing.x2,
+    paddingVertical: theme.spacing.x1_5,
+    fontSize: theme.typography.md,
     color: theme.colors.textPrimary,
+    fontFamily: theme.typography.fontFamily,
+  },
+  arrowButton: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  arrowIcon: {
+    fontSize: 18,
+    color: theme.colors.textPrimary,
+    fontWeight: 'bold',
+  },
+  // Remember Me
+  rememberMeContainer: {
+    marginBottom: theme.spacing.x3,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: theme.radii.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    marginRight: theme.spacing.x1_5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: theme.colors.blue,
+    borderColor: theme.colors.blue,
+  },
+  checkmark: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  rememberMeText: {
+    fontSize: theme.typography.sm,
+    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily,
+  },
+  // Separator
+  separator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: theme.spacing.x3,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.borderSubtle,
+  },
+  separatorText: {
+    marginHorizontal: theme.spacing.x2,
+    fontSize: theme.typography.sm,
+    color: theme.colors.textMuted,
+    fontFamily: theme.typography.fontFamily,
+  },
+  // Demo Info
+  demoInfo: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.x2,
+    marginBottom: theme.spacing.x3,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
-    fontFamily: 'Inter_400Regular',
   },
-  loginButton: {
-    backgroundColor: theme.colors.blue,
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  loginButtonDisabled: {
-    backgroundColor: theme.colors.textMuted,
-  },
-  loginButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
+  demoTitle: {
+    fontSize: theme.typography.sm,
+    fontWeight: 'bold',
     color: theme.colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
+    marginBottom: theme.spacing.x1,
+    fontFamily: theme.typography.fontFamilySemibold,
   },
+  demoText: {
+    fontSize: theme.typography.xs,
+    color: theme.colors.textSecondary,
+    fontFamily: theme.typography.fontFamily,
+    marginBottom: 2,
+  },
+  demoNote: {
+    fontSize: theme.typography.xs,
+    color: theme.colors.blue,
+    fontFamily: theme.typography.fontFamily,
+    fontStyle: 'italic',
+    marginTop: theme.spacing.x1,
+  },
+  // Footer
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    marginTop: theme.spacing.x3,
   },
   footerText: {
-    fontSize: 16,
+    fontSize: theme.typography.sm,
     color: theme.colors.textSecondary,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: theme.typography.fontFamily,
   },
-  registerLink: {
-    fontSize: 16,
-    fontWeight: '600',
+  createAccountLink: {
+    fontSize: theme.typography.sm,
     color: theme.colors.blue,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  demoInfo: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  demoText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
+    fontWeight: '600',
+    fontFamily: theme.typography.fontFamilySemibold,
   },
 });

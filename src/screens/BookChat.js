@@ -15,44 +15,30 @@ import {
 import theme from '../constants/theme';
 import { updateBook, calculateProgress } from '../utils/BookStorage';
 import SimpleBookImage from '../components/SimpleBookImage';
-import CombinedGreetingModal from '../components/CombinedGreetingModal';
-import { sendMessageToClaude, generateBookSummary, saveSessionSummary } from '../services/ClaudeAPI';
+import DeleteBookModal from '../components/DeleteBookModal';
+import { sendMessageToClaude } from '../services/ClaudeAPI';
+import { useAuth } from '../context/AuthContext';
+import { deleteBook as deleteBookFromStorage } from '../utils/BookStorage';
+import { handleAPIError, logError } from '../utils/ErrorHandler';
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionSummary, setSessionSummary] = useState('');
   const [draggedLineIndex, setDraggedLineIndex] = useState(null);
   const [currentBook, setCurrentBook] = useState(book);
-  const [showCombinedModal, setShowCombinedModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const scrollViewRef = useRef();
+  const { user } = useAuth();
   
   // Animation values
   const pageFadeAnim = useRef(new Animated.Value(0)).current;
+  const logoPulseAnim = useRef(new Animated.Value(1)).current;
+  const dotsAnim1 = useRef(new Animated.Value(0)).current;
+  const dotsAnim2 = useRef(new Animated.Value(0)).current;
+  const dotsAnim3 = useRef(new Animated.Value(0)).current;
 
 
-  // AI Summary Generation Framework
-  // TODO: Replace with actual AI service integration
-  const generateAISummary = async (bookData) => {
-    // This is where you'll integrate with your AI service
-    // Example structure:
-    // const aiResponse = await fetch('/api/generate-summary', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     bookTitle: bookData.title,
-    //     currentPage: bookData.currentPage,
-    //     chapter: bookData.chapter,
-    //     previousSessionData: bookData.sessionHistory,
-    //     userNotes: bookData.notes
-    //   })
-    // });
-    // return await aiResponse.json();
-    
-    // For now, return null to use placeholder
-    return null;
-  };
 
   // Dynamic summary generator using Google Books data
   const generatePlaceholderSummary = () => {
@@ -67,22 +53,6 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-  // Main summary generation function
-  const generateLastSessionSummary = async () => {
-    try {
-      // Try to get AI-generated summary from Claude first
-      const claudeSummary = await generateBookSummary(currentBook);
-      
-      if (claudeSummary.success) {
-        return claudeSummary.summary;
-      } else {
-        throw new Error(`Claude summary failed: ${claudeSummary.error}`);
-      }
-    } catch (error) {
-      console.error('Summary generation failed:', error);
-      throw error; // Re-throw to let the calling function handle it
-    }
-  };
 
 
   // Update local book state when prop changes
@@ -99,25 +69,92 @@ export default function BookChat({ book, onBack }) {
     }).start();
   }, [pageFadeAnim]);
 
-  // Load session summary and show combined modal when component mounts
+  // Animation for thinking state
   useEffect(() => {
-    const loadSummaryAndShowModal = async () => {
-      try {
-        const summary = await generateLastSessionSummary();
-        setSessionSummary(summary);
-      } catch (error) {
-        console.error('Failed to load summary:', error);
-        // Use a simple fallback message
-        setSessionSummary(`Welcome to "${currentBook.title}"! What would you like to discuss?`);
-      }
-      
-      // Show the combined modal after a short delay
-      setTimeout(() => {
-        setShowCombinedModal(true);
-      }, 800);
-    };
-    
-    loadSummaryAndShowModal();
+    if (isTyping) {
+      // Start logo pulsing animation
+      const logoPulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(logoPulseAnim, {
+            toValue: 1.2,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(logoPulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+
+      // Start dots animation with staggered timing
+      const dotsAnimation = Animated.loop(
+        Animated.stagger(200, [
+          Animated.sequence([
+            Animated.timing(dotsAnim1, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(dotsAnim1, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(dotsAnim2, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(dotsAnim2, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(dotsAnim3, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(dotsAnim3, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      );
+
+      logoPulse.start();
+      dotsAnimation.start();
+
+      return () => {
+        logoPulse.stop();
+        dotsAnimation.stop();
+      };
+    } else {
+      // Reset animations when not typing
+      logoPulseAnim.setValue(1);
+      dotsAnim1.setValue(0);
+      dotsAnim2.setValue(0);
+      dotsAnim3.setValue(0);
+    }
+  }, [isTyping]);
+
+  // Add initial AI message when component mounts
+  useEffect(() => {
+    const initialMessage = generatePlaceholderSummary();
+    setMessages([{
+      id: '1',
+      text: initialMessage,
+      isUser: false,
+      timestamp: new Date(),
+    }]);
   }, []);
 
 
@@ -130,16 +167,18 @@ export default function BookChat({ book, onBack }) {
   const generateAIResponse = async (userMessage) => {
     try {
       // Use Claude API for smart responses
-      const claudeResponse = await sendMessageToClaude(userMessage, currentBook, messages);
+      const claudeResponse = await sendMessageToClaude(userMessage, currentBook, messages, user);
       
       if (claudeResponse.success) {
         return claudeResponse.message;
       } else {
-        throw new Error(`Claude API failed: ${claudeResponse.error}`);
+        // Use the error handling utility for consistent error messages
+        logError(new Error(claudeResponse.error), 'AI Response Generation');
+        return claudeResponse.message || handleAPIError(new Error(claudeResponse.error), 'AI Response');
       }
     } catch (error) {
-      console.error('Error generating AI response:', error);
-      throw error; // Re-throw to let the calling function handle it
+      logError(error, 'AI Response Generation');
+      return handleAPIError(error, 'AI Response Generation');
     }
   };
 
@@ -164,35 +203,7 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-  const handleUpdatePageFromModal = async (newPage) => {
-    try {
-      const newProgress = calculateProgress(newPage, currentBook.totalPages);
-      await updateBook(currentBook.id, { 
-        currentPage: newPage,
-        progress: newProgress
-      });
-      // Update the local book state for immediate UI update
-      setCurrentBook(prev => ({
-        ...prev,
-        currentPage: newPage,
-        progress: newProgress
-      }));
-    } catch (error) {
-      console.error('Error updating page from modal:', error);
-      throw error; // Re-throw so modal can handle the error
-    }
-  };
 
-  const handleCloseCombinedModal = () => {
-    setShowCombinedModal(false);
-    // Add the initial AI message after modal is closed
-    setMessages([{
-      id: '1',
-      text: `Now that you're caught up, what would you like to discuss about "${currentBook.title}"? I'm here to explore themes, characters, and plot points with you`,
-      isUser: false,
-      timestamp: new Date(),
-    }]);
-  };
 
   // Create PanResponder for line dragging
   const panResponder = PanResponder.create({
@@ -301,20 +312,23 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-  const handleBack = async () => {
-    // Save session summary before going back
-    if (messages.length > 0) {
-      try {
-        await saveSessionSummary(currentBook, messages);
-        console.log('Session summary saved successfully');
-      } catch (error) {
-        console.error('Failed to save session summary:', error);
-        // Continue with back navigation even if saving fails
-      }
-    }
-    
-    // Call the original onBack function
+  const handleBack = () => {
     onBack();
+  };
+
+  const handleDeleteBook = () => {
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await deleteBookFromStorage(currentBook.id);
+      // Navigate back to library after successful deletion
+      onBack();
+    } catch (error) {
+      console.error('Error deleting book:', error);
+      // You might want to show an error message here
+    }
   };
 
   const renderPageLines = () => {
@@ -408,13 +422,6 @@ export default function BookChat({ book, onBack }) {
             <Text style={styles.headerBookTitle}>{currentBook.title}</Text>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.pageNumberContainer}
-              onPress={() => setShowCombinedModal(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.pageNumber}>{currentBook.currentPage}</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -541,14 +548,32 @@ export default function BookChat({ book, onBack }) {
                 {isTyping && (
                   <View style={[styles.messageContainer, styles.aiMessage]}>
                     <View style={[styles.messageBubble, styles.aiBubble]}>
-                      <View style={styles.aiLogoContainer}>
+                      <Animated.View style={[styles.aiLogoContainer, {
+                        transform: [{ scale: logoPulseAnim }]
+                      }]}>
                         <Image 
                           source={require('../../assets/duckbill.png')} 
                           style={styles.aiLogo}
                           resizeMode="contain"
                         />
+                      </Animated.View>
+                      <View style={styles.typingContainer}>
+                        <Text style={styles.typingText}>Waddle is thinking</Text>
+                        <View style={styles.dotsContainer}>
+                          <Animated.View style={[styles.thinkingDot, {
+                            opacity: dotsAnim1,
+                            transform: [{ scale: dotsAnim1 }]
+                          }]} />
+                          <Animated.View style={[styles.thinkingDot, {
+                            opacity: dotsAnim2,
+                            transform: [{ scale: dotsAnim2 }]
+                          }]} />
+                          <Animated.View style={[styles.thinkingDot, {
+                            opacity: dotsAnim3,
+                            transform: [{ scale: dotsAnim3 }]
+                          }]} />
+                        </View>
                       </View>
-                      <Text style={styles.typingText}>Waddle is thinking...</Text>
                     </View>
                   </View>
                 )}
@@ -579,15 +604,22 @@ export default function BookChat({ book, onBack }) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Combined Greeting Modal */}
-      <CombinedGreetingModal
-        visible={showCombinedModal}
-        onClose={handleCloseCombinedModal}
-        currentPage={currentBook.currentPage}
-        totalPages={currentBook.totalPages}
-        onUpdatePage={handleUpdatePageFromModal}
-        bookTitle={currentBook.title}
-        greetingText={sessionSummary}
+
+      {/* Floating Delete Button - Bottom Left */}
+      <TouchableOpacity 
+        style={styles.floatingDeleteButton}
+        onPress={handleDeleteBook}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.floatingDeleteButtonText}>🗑️</Text>
+      </TouchableOpacity>
+
+      {/* Delete Book Modal */}
+      <DeleteBookModal
+        visible={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        book={currentBook}
       />
     </Animated.View>
   );
@@ -613,31 +645,8 @@ const styles = StyleSheet.create({
   headerRight: {
     flex: 1,
     alignItems: 'flex-end',
-  },
-  pageNumberContainer: {
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    // Add subtle indication that it's clickable
-    borderColor: theme.colors.outline,
-  },
-  pageNumber: {
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-    textAlign: 'center',
+    flexDirection: 'row',
+    gap: 12,
   },
   backButtonModal: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -888,9 +897,26 @@ const styles = StyleSheet.create({
   aiText: {
     color: theme.colors.textSecondary,
   },
+  typingContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   typingText: {
     color: theme.colors.textMuted,
     fontStyle: 'italic',
+    marginRight: 8,
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  thinkingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.textMuted,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -931,5 +957,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
+  },
+  floatingDeleteButton: {
+    position: 'absolute',
+    bottom: 100, // Moved up to avoid overlap with chat input
+    left: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 1000, // Ensure it stays above other elements
+  },
+  floatingDeleteButtonText: {
+    fontSize: 20,
+    textAlign: 'center',
   },
 });

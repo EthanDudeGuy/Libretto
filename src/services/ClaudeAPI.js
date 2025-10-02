@@ -1,3 +1,5 @@
+import { handleAPIError, handleClaudeResponse, logError } from '../utils/ErrorHandler';
+
 // Backend API endpoints (no more direct Claude API calls)
 const BACKEND_BASE_URL = 'http://localhost:8000';
 const CHAT_ENDPOINT = `${BACKEND_BASE_URL}/api/chat`;
@@ -8,7 +10,7 @@ const SAVE_SESSION_ENDPOINT = `${BACKEND_BASE_URL}/api/save-session`;
 // Note: Book context and system prompt generation is now handled by the backend server
 
 // Send message to backend API
-export const sendMessageToClaude = async (userMessage, book, conversationHistory = []) => {
+export const sendMessageToClaude = async (userMessage, book, conversationHistory = [], user = null) => {
   try {
     // Prepare book data for backend
     const bookData = {
@@ -26,7 +28,12 @@ export const sendMessageToClaude = async (userMessage, book, conversationHistory
       session_id: "book-chat-session", // Simple session ID
       message: userMessage,
       book_data: bookData,
-      conversation_history: conversationHistory
+      conversation_history: conversationHistory,
+      user: user ? {
+        firstName: user.firstName,
+        name: user.name,
+        email: user.email
+      } : null
     };
 
     const response = await fetch(CHAT_ENDPOINT, {
@@ -38,32 +45,33 @@ export const sendMessageToClaude = async (userMessage, book, conversationHistory
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Backend API error: ${response.status} - ${errorText}`);
+      let errorMessage = `Backend API error: ${response.status}`;
+      try {
+        const errorText = await response.text();
+        errorMessage += ` - ${errorText}`;
+      } catch (e) {
+        errorMessage += ' - Unable to read error details';
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
     
-    if (data.success && data.message) {
-      return {
-        success: true,
-        message: data.message.trim()
-      };
-    } else {
-      throw new Error('Invalid response format from Backend API');
-    }
+    // Use the new error handling utility
+    return handleClaudeResponse(data, 'I\'m sorry, I couldn\'t process your message right now.');
     
   } catch (error) {
-    console.error('Chat API error:', error);
+    logError(error, 'Chat API call', { endpoint: CHAT_ENDPOINT });
     return {
       success: false,
-      error: error.message
+      error: handleAPIError(error, 'Chat API'),
+      message: handleAPIError(error, 'Chat API')
     };
   }
 };
 
 // Generate book summary using backend API
-export const generateBookSummary = async (book) => {
+export const generateBookSummary = async (book, user = null) => {
   try {
     // Prepare book data for backend
     const bookData = {
@@ -79,7 +87,12 @@ export const generateBookSummary = async (book) => {
     
     const requestBody = {
       session_id: "book-summary-session",
-      book_data: bookData
+      book_data: bookData,
+      user: user ? {
+        firstName: user.firstName,
+        name: user.name,
+        email: user.email
+      } : null
     };
 
     const response = await fetch(SUMMARY_ENDPOINT, {
@@ -91,26 +104,41 @@ export const generateBookSummary = async (book) => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Backend API error: ${response.status} - ${errorText}`);
+      let errorMessage = `Backend API error: ${response.status}`;
+      try {
+        const errorText = await response.text();
+        errorMessage += ` - ${errorText}`;
+      } catch (e) {
+        errorMessage += ' - Unable to read error details';
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
     
-    if (data.success && data.summary) {
+    // Use the new error handling utility for summary responses
+    const result = handleClaudeResponse(data, 'Welcome! What would you like to discuss?');
+    
+    // Adapt the response format for summary (summary vs message)
+    if (result.success) {
       return {
         success: true,
-        summary: data.summary.trim()
+        summary: result.message
       };
     } else {
-      throw new Error('Invalid response format from Backend API');
+      return {
+        success: false,
+        error: result.error,
+        summary: result.message
+      };
     }
     
   } catch (error) {
-    console.error('Summary API error:', error);
+    logError(error, 'Summary API call', { endpoint: SUMMARY_ENDPOINT });
     return {
       success: false,
-      error: error.message
+      error: handleAPIError(error, 'Summary API'),
+      summary: handleAPIError(error, 'Summary API')
     };
   }
 };

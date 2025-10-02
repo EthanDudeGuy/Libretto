@@ -195,6 +195,8 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
                   onChangeText={setSearchQuery}
                   placeholder="Search by title, author, or ISBN..."
                   placeholderTextColor={theme.colors.textMuted}
+                  onSubmitEditing={handleSearch}
+                  returnKeyType="search"
                 />
                 <TouchableOpacity 
                   style={[styles.searchButton, isSearching && styles.searchButtonDisabled]} 
