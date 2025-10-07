@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Build outputs
+*.min.js
+*.min.css
+
+# Generated files
+*.generated.*
+*.auto.*
+
+# Lock files
+package-lock.json
+yarn.lock
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp

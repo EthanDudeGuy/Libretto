@@ -1,0 +1,169 @@
+# Libretto - Sophisticated Literary Companion Rules
+
+## Project Overview
+Libretto is a sophisticated literary companion that understands exactly where you are in any book and can discuss it without spoiling future events. It's like chatting with an enthusiastic book club member who has perfect spoiler discipline.
+
+The app provides a premium reading experience with:
+- **Glassmorphism-styled interface** with rich purple gradient backgrounds
+- **Spoiler-free AI discussions** powered by Claude API
+- **Smart bookmark system** with intelligent page/chapter parsing
+- **Beautiful book library management** with reading progress tracking
+- **Responsive design** that works perfectly on mobile, tablet, and desktop
+
+The goal is to create something that feels both cutting-edge and timeless - modern AI capabilities wrapped in an interface that celebrates the enduring joy of reading books.
+
+## Code Style & Standards
+
+### React Native/Expo Best Practices
+- Use functional components with hooks
+- Follow the established component structure in `/src/components/`
+- Use the theme system from `/src/constants/theme.js`
+- Follow the design system in `/src/constants/STYLE_GUIDE.md`
+- Use TypeScript for type safety when possible
+- Prefer StyleSheet.create() over inline styles for performance
+
+### File Organization
+- Components go in `/src/components/`
+- Screens go in `/src/screens/`
+- Services/APIs go in `/src/services/`
+- Utilities go in `/src/utils/`
+- Constants and theme go in `/src/constants/`
+- Context providers go in `/src/context/`
+
+### Naming Conventions
+- Components: PascalCase (e.g., `BookCard.js`)
+- Files: PascalCase for components, camelCase for utilities
+- Variables and functions: camelCase
+- Constants: UPPER_SNAKE_CASE
+- CSS classes: kebab-case (when applicable)
+
+### Theme & Styling
+- ALWAYS use the theme system from `theme.js`
+- **Glassmorphism Design**: Implement frosted glass effects with blur backgrounds
+- **Purple Gradient Backgrounds**: Use rich purple gradients for premium feel
+- **Colors**: Use `colors.background`, `colors.textPrimary`, etc.
+- **Spacing**: Use `spacing.x1`, `spacing.x2`, etc. (8px grid system)
+- **Typography**: Use `typography.fontFamily`, `typography.md`, etc.
+- **Border radius**: Use `radii.sm`, `radii.md`, etc.
+- **Premium Aesthetics**: Every interaction should feel smooth and purposeful
+- **Responsive Design**: Must work perfectly on mobile, tablet, and desktop
+
+### Component Guidelines
+- Keep components focused and single-purpose
+- Use proper prop validation
+- Implement proper error handling
+- Use React.memo() for performance when appropriate
+- Follow the existing modal patterns (see AddBookModal, DeleteBookModal)
+
+### State Management
+- Use React Context for global state (AuthContext pattern)
+- Use local state for component-specific state
+- Use AsyncStorage for persistence (see BookStorage.js pattern)
+
+### API Integration
+- Follow the existing API service patterns in `/src/services/`
+- Implement proper error handling for all API calls
+- Use the ErrorHandler utility for consistent error management
+- Handle loading states appropriately
+
+### Performance
+- Use FlatList for large lists
+- Implement proper image optimization
+- Avoid inline functions in render methods
+- Use useCallback and useMemo when appropriate
+
+### Security
+- Never commit API keys or sensitive data
+- Use environment variables for configuration
+- Implement proper authentication checks
+- Sanitize user inputs
+
+### Testing
+- Write tests for utility functions
+- Test component rendering and interactions
+- Mock external API calls
+- Use the existing test patterns
+
+### Documentation
+- Comment complex logic
+- Use JSDoc for function documentation
+- Keep README files updated
+- Document API changes
+
+## Specific Project Rules
+
+### Book Management & Library
+- **Beautiful Book Cards**: Glassmorphism-styled cards showing reading progress
+- **Smart Bookmark System**: Left/right arrow controls that intelligently parse page/chapter numbers
+- **Progress Visualization**: Dynamic progress bars that update in real-time
+- **Book Data Structure**: Include title, author, current reading position (Page X, Chapter Y)
+- **Deletion Confirmation**: Elegant confirmation dialogs for book removal
+- **Missing Cover Handling**: Graceful fallbacks for books without covers
+- **Use SimpleBookImage component** for consistent book cover display
+
+### Authentication & User Experience
+- Follow the AuthContext pattern for user management
+- Implement proper login/logout flows with smooth transitions
+- Use ProtectedRoute for authenticated screens
+- Handle authentication errors gracefully
+- **Premium Feel**: Every interaction should feel smooth and purposeful
+
+### AI Literary Discussion (Core Feature)
+- **Spoiler-Free AI**: Contextual analysis that only references what the user has already read
+- **Perfect Spoiler Discipline**: AI must never reveal future plot points
+- **Literary Analysis**: Discuss characters, themes, plot points, and literary devices
+- **Use ClaudeAPI service** for AI interactions with spoiler boundaries
+- **Contextual Awareness**: AI knows exactly where user is in the book
+- **Enthusiastic Book Club Member**: AI should feel like a knowledgeable, passionate reader
+- **Message Handling**: Implement proper message handling with spoiler protection
+- **Loading States**: Elegant loading indicators for AI responses
+- **Rate Limiting**: Handle API rate limits and errors gracefully
+
+### Glassmorphism Design System
+- **Frosted Glass Effects**: Use blur backgrounds with transparency
+- **Purple Gradient Backgrounds**: Rich, premium purple gradients throughout
+- **Card Design**: Glassmorphism-styled cards with subtle borders and shadows
+- **Smooth Animations**: Micro-interactions and transitions throughout
+- **Visual Hierarchy**: Clear distinction between different UI elements
+- **Depth and Layering**: Multiple levels of visual depth with proper shadows
+- **Responsive Glassmorphism**: Adapts beautifully across all screen sizes
+
+### Backend Integration
+- Follow the backend patterns in `/src/services/backend_server.py`
+- Use proper HTTP status code handling
+- Implement retry logic for failed requests
+- Log errors appropriately
+
+## Code Quality
+- Follow ESLint rules (see .eslintrc.js)
+- Use Prettier for code formatting
+- Write clean, readable code
+- Avoid code duplication
+- Use meaningful variable and function names
+- Keep functions small and focused
+
+## Git Workflow
+- Use meaningful commit messages
+- Create feature branches for new features
+- Test changes before committing
+- Follow the existing branch naming conventions
+
+## Deployment
+- Follow the Expo deployment guidelines
+- Test on both iOS and Android
+- Ensure proper app configuration in app.json
+- Use proper environment configurations
+
+## Error Handling
+- Use the ErrorHandler utility consistently
+- Provide meaningful error messages to users
+- Log errors for debugging
+- Implement fallback UI for error states
+
+## Accessibility
+- Use proper accessibility labels
+- Ensure sufficient color contrast
+- Implement keyboard navigation
+- Test with screen readers
+
+Remember: Always prioritize user experience, code maintainability, and performance. Follow the established patterns in the codebase and maintain consistency with the existing design system.
