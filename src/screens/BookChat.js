@@ -65,7 +65,7 @@ export default function BookChat({ book, onBack }) {
     Animated.timing(pageFadeAnim, {
       toValue: 1,
       duration: 600,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [pageFadeAnim]);
 
@@ -78,12 +78,12 @@ export default function BookChat({ book, onBack }) {
           Animated.timing(logoPulseAnim, {
             toValue: 1.2,
             duration: 800,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(logoPulseAnim, {
             toValue: 1,
             duration: 800,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ])
       );
@@ -95,36 +95,36 @@ export default function BookChat({ book, onBack }) {
             Animated.timing(dotsAnim1, {
               toValue: 1,
               duration: 300,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }),
             Animated.timing(dotsAnim1, {
               toValue: 0,
               duration: 300,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }),
           ]),
           Animated.sequence([
             Animated.timing(dotsAnim2, {
               toValue: 1,
               duration: 300,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }),
             Animated.timing(dotsAnim2, {
               toValue: 0,
               duration: 300,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }),
           ]),
           Animated.sequence([
             Animated.timing(dotsAnim3, {
               toValue: 1,
               duration: 300,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }),
             Animated.timing(dotsAnim3, {
               toValue: 0,
               duration: 300,
-              useNativeDriver: true,
+              useNativeDriver: false,
             }),
           ]),
         ])
@@ -411,48 +411,16 @@ export default function BookChat({ book, onBack }) {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header Section with Back Button and Book Title */}
+        {/* Header Section with Back Button */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.backButtonModal} onPress={handleBack}>
-              <Text style={styles.backButtonText}>← Back</Text>
+              <Text style={styles.backButtonText}>← Library</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerBookTitle}>{currentBook.title}</Text>
           </View>
           <View style={styles.headerRight}>
-          </View>
-        </View>
-
-        {/* Progress Section */}
-        <View style={styles.progressSection}>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressHeader}>
-              <TouchableOpacity 
-                style={[styles.progressArrow, currentBook.currentPage <= 1 && styles.progressArrowDisabled]}
-                onPress={() => handlePageChange(-1)}
-                disabled={currentBook.currentPage <= 1}
-              >
-                <Text style={[styles.progressArrowText, currentBook.currentPage <= 1 && styles.progressArrowTextDisabled]}>‹</Text>
-              </TouchableOpacity>
-              
-              <View style={styles.pageLinesContainer} {...panResponder.panHandlers}>
-                {renderPageLines()}
-              </View>
-              
-              <TouchableOpacity 
-                style={[styles.progressArrow, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowDisabled]}
-                onPress={() => handlePageChange(1)}
-                disabled={currentBook.currentPage >= currentBook.totalPages}
-              >
-                <Text style={[styles.progressArrowText, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowTextDisabled]}>›</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.progressText}>
-              Page {currentBook.currentPage} of {currentBook.totalPages} ({currentBook.progress}%)
-            </Text>
           </View>
         </View>
 
@@ -528,13 +496,116 @@ export default function BookChat({ book, onBack }) {
                     </View>
                   </>
                 )}
+
+                <View style={styles.infoDivider} />
+                <View style={styles.infoRow}>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoLabel}>Language</Text>
+                    <Text style={styles.infoValue}>{currentBook.language || 'English'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.infoDivider} />
+                <View style={styles.infoRow}>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoLabel}>Reading Time</Text>
+                    <Text style={styles.infoValue}>{currentBook.totalPages ? Math.ceil(currentBook.totalPages / 2) + ' min' : 'Unknown'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.infoDivider} />
+                <View style={styles.infoRow}>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoLabel}>Progress</Text>
+                    <Text style={styles.infoValue}>{currentBook.progress || 0}% Complete</Text>
+                  </View>
+                </View>
+
+                {currentBook.description && (
+                  <>
+                    <View style={styles.infoDivider} />
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoTextContainer}>
+                        <Text style={styles.infoLabel}>Description</Text>
+                        <Text style={styles.infoValue} numberOfLines={3}>{currentBook.description}</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {currentBook.averageRating && (
+                  <>
+                    <View style={styles.infoDivider} />
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoTextContainer}>
+                        <Text style={styles.infoLabel}>Rating</Text>
+                        <Text style={styles.infoValue}>{currentBook.averageRating}/5 ⭐</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {currentBook.pageCount && currentBook.pageCount !== currentBook.totalPages && (
+                  <>
+                    <View style={styles.infoDivider} />
+                    <View style={styles.infoRow}>
+                      <View style={styles.infoTextContainer}>
+                        <Text style={styles.infoLabel}>Page Count</Text>
+                        <Text style={styles.infoValue}>{currentBook.pageCount}</Text>
+                      </View>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
           </View>
 
-          {/* Right Column: Chatbox */}
+          {/* Right Column: Header and Chatbox */}
           <View style={styles.rightColumn}>
-            {/* Chatbox - Large box on right side */}
+            {/* Right Column Header with Book Title, Author, and Page Navigation */}
+            <View style={styles.rightColumnHeader}>
+              <View style={styles.bookTitleAuthorContainer}>
+                <Text style={styles.rightColumnBookTitle}>{currentBook.title}</Text>
+                <Text style={styles.rightColumnAuthor}>{currentBook.author || 'Unknown'}</Text>
+              </View>
+              
+              <View style={styles.pageScrollContainer}>
+                <TouchableOpacity 
+                  style={[styles.progressArrow, currentBook.currentPage <= 1 && styles.progressArrowDisabled]}
+                  onPress={() => handlePageChange(-1)}
+                  disabled={currentBook.currentPage <= 1}
+                >
+                  <Text style={[styles.progressArrowText, currentBook.currentPage <= 1 && styles.progressArrowTextDisabled]}>‹</Text>
+                </TouchableOpacity>
+                
+                <View style={styles.pageLinesContainer} {...panResponder.panHandlers}>
+                  {renderPageLines()}
+                </View>
+                
+                <TouchableOpacity 
+                  style={[styles.progressArrow, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowDisabled]}
+                  onPress={() => handlePageChange(1)}
+                  disabled={currentBook.currentPage >= currentBook.totalPages}
+                >
+                  <Text style={[styles.progressArrowText, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowTextDisabled]}>›</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* Page Number Display */}
+              <View style={styles.pageNumberContainer}>
+                <Text style={styles.pageNumberText}>
+                  {currentBook.currentPage} / {currentBook.totalPages}
+                </Text>
+              </View>
+              
+              <View style={styles.directoryIconContainer}>
+                <TouchableOpacity style={styles.directoryIcon}>
+                  <Text style={styles.directoryIconText}>☰</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Main Chat Area */}
             <View style={styles.chatContainer}>
 
               <ScrollView
@@ -586,17 +657,17 @@ export default function BookChat({ book, onBack }) {
                   onChangeText={setInputText}
                   placeholder="Ask about themes, characters, plot..."
                   placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                  multiline
                   maxLength={500}
                   onSubmitEditing={handleSendMessage}
                   blurOnSubmit={false}
+                  returnKeyType="send"
                 />
                 <TouchableOpacity
                   style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
                   onPress={handleSendMessage}
                   disabled={!inputText.trim() || isTyping}
                 >
-                  <Text style={styles.sendButtonText}>Send</Text>
+                  <Text style={styles.sendButtonText}>→</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -605,7 +676,7 @@ export default function BookChat({ book, onBack }) {
       </KeyboardAvoidingView>
 
 
-      {/* Floating Delete Button - Bottom Left */}
+      {/* Floating Delete Button - Bottom Left Panel */}
       <TouchableOpacity 
         style={styles.floatingDeleteButton}
         onPress={handleDeleteBook}
@@ -635,8 +706,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   headerLeft: {
     flex: 1,
@@ -651,8 +722,8 @@ const styles = StyleSheet.create({
   backButtonModal: {
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     shadowColor: '#000',
@@ -677,17 +748,29 @@ const styles = StyleSheet.create({
   },
   headerBookTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 30,
+    fontSize: 36,
     fontWeight: 'bold',
     textAlign: 'center',
     fontFamily: 'Inter_700Bold',
   },
+  directoryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: theme.colors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+  },
+  directoryIconText: {
+    fontSize: 18,
+    color: theme.colors.textPrimary,
+  },
   progressSection: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderSubtle,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   mainContent: {
     flex: 1,
@@ -697,19 +780,17 @@ const styles = StyleSheet.create({
   leftColumn: {
     width: 200,
     backgroundColor: theme.colors.surface,
-    borderRightWidth: 1,
-    borderRightColor: theme.colors.borderSubtle,
-    paddingVertical: 16,
+    paddingVertical: 8,
     paddingHorizontal: 12,
   },
   bookCoverContainer: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   bookInfoContainer: {
     backgroundColor: theme.colors.surfaceElevated,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     shadowColor: '#000',
@@ -745,7 +826,7 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 12,
+    paddingVertical: 6,
     paddingHorizontal: 4,
   },
   infoTextContainer: {
@@ -754,31 +835,65 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     color: theme.colors.textMuted,
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Inter_500Medium',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
-    lineHeight: 16,
+    marginBottom: 2,
+    lineHeight: 14,
   },
   infoValue: {
     color: theme.colors.textPrimary,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   infoDivider: {
     height: 1,
     backgroundColor: theme.colors.borderSubtle,
     marginHorizontal: 4,
-    marginVertical: 4,
+    marginVertical: 2,
   },
   // Right Column Styles
   rightColumn: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 8,
+  },
+  rightColumnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  bookTitleAuthorContainer: {
+    flex: 1,
+  },
+  rightColumnBookTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 24,
+    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 4,
+  },
+  rightColumnAuthor: {
+    color: theme.colors.textMuted,
+    fontSize: 16,
+    fontFamily: 'Inter_500Medium',
+  },
+  pageScrollContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  directoryIconContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
   },
   progressContainer: {
     alignItems: 'center',
@@ -833,6 +948,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
   },
+  pageNumberContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  pageNumberText: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    fontWeight: '600',
+  },
   chatContainer: {
     flex: 1,
     position: 'relative',
@@ -841,6 +966,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     overflow: 'hidden',
+    minHeight: 400,
   },
   messagesContainer: {
     flex: 1,
@@ -924,28 +1050,29 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     backgroundColor: theme.colors.surfaceElevated,
-    alignItems: 'flex-end',
+    alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: theme.colors.borderStrong,
   },
   textInput: {
     flex: 1,
     backgroundColor: theme.colors.surface,
-    borderRadius: 20,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     marginRight: 12,
     color: theme.colors.textPrimary,
     fontSize: 16,
-    maxHeight: 100,
+    height: 54,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    textAlignVertical: 'center',
   },
   sendButton: {
     backgroundColor: theme.colors.blue,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
+    width: 54,
+    height: 54,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -954,17 +1081,17 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
   },
   floatingDeleteButton: {
     position: 'absolute',
-    bottom: 100, // Moved up to avoid overlap with chat input
-    left: 20,
+    bottom: 22, // Aligned with container padding
+    left: 22, // Aligned with container paddingLeft
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: theme.radii.md, // Square with rounded corners to match app style
     backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,

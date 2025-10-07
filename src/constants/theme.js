@@ -16,10 +16,10 @@ export const colors = {
   textInverse: '#0f1419',
 
   // Accents
-  blue: '#4285f4',
-  blueHover: '#5b97f6',
-  blueMuted: 'rgba(78, 124, 199, 0.34)',
-  outline: 'rgba(66, 133, 244, 0.4)',
+  blue: '#ee6c4d',
+  blueHover: '#ee6c4d',
+  blueMuted: '#ee6c4d',
+  outline: '#ee6c4d',
 
   // Borders
   borderSubtle: 'rgba(230, 237, 243, 0.08)',

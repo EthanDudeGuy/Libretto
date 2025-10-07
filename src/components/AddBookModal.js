@@ -34,12 +34,12 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(scaleAnim, {
           toValue: 1,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
     } else {
@@ -47,12 +47,12 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 140,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(scaleAnim, {
           toValue: 0.95,
           duration: 140,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
     }
@@ -283,14 +283,22 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
             {selectedGoogleBook && (
               <View style={styles.selectedBookContainer}>
                 <Text style={styles.selectedBookTitle}>Selected book:</Text>
-                <View style={styles.selectedBookInfo}>
-                  <Text style={styles.selectedBookName}>{selectedGoogleBook.title}</Text>
-                  <Text style={styles.selectedBookAuthor}>by {selectedGoogleBook.author}</Text>
-                  {selectedGoogleBook.pageCount && (
-                    <Text style={styles.selectedBookPages}>
-                      {selectedGoogleBook.pageCount} pages
-                    </Text>
+                <View style={styles.selectedBookContent}>
+                  {selectedGoogleBook.thumbnail && (
+                    <Image 
+                      source={{ uri: selectedGoogleBook.thumbnail }} 
+                      style={styles.selectedBookThumbnail} 
+                    />
                   )}
+                  <View style={styles.selectedBookInfo}>
+                    <Text style={styles.selectedBookName}>{selectedGoogleBook.title}</Text>
+                    <Text style={styles.selectedBookAuthor}>by {selectedGoogleBook.author}</Text>
+                    {selectedGoogleBook.pageCount && (
+                      <Text style={styles.selectedBookPages}>
+                        {selectedGoogleBook.pageCount} pages
+                      </Text>
+                    )}
+                  </View>
                 </View>
               </View>
             )}
@@ -397,7 +405,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontFamily: 'Inter_600SemiBold',
   },
+  selectedBookContent: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  selectedBookThumbnail: {
+    width: 60,
+    height: 80,
+    borderRadius: 8,
+  },
   selectedBookInfo: {
+    flex: 1,
     gap: 4,
   },
   selectedBookName: {

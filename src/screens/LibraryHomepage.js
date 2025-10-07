@@ -61,12 +61,12 @@ export default function Homepage({ onNavigateToChat }) {
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 600,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(scaleAnim, {
           toValue: 0.95,
           duration: 600,
-          useNativeDriver: true,
+          useNativeDriver: false,
         })
       ]).start(() => {
         // Navigate to chat after animation completes
@@ -84,7 +84,7 @@ export default function Homepage({ onNavigateToChat }) {
     Animated.timing(spinValue, {
       toValue: 1,
       duration: 500,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   };
 
@@ -110,12 +110,12 @@ export default function Homepage({ onNavigateToChat }) {
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 600,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(scaleAnim, {
         toValue: 0.95,
         duration: 600,
-        useNativeDriver: true,
+        useNativeDriver: false,
       })
     ]).start(() => {
       // Navigate to chat after animation completes

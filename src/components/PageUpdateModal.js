@@ -54,18 +54,18 @@ export default function CombinedGreetingModal({
         Animated.timing(modalOpacity, {
           toValue: 1,
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.spring(modalScale, {
           toValue: 1,
           tension: 100,
           friction: 8,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(slideUpAnim, {
           toValue: 0,
           duration: 400,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
     }
@@ -96,7 +96,7 @@ export default function CombinedGreetingModal({
       toValue: 1,
       tension: 100,
       friction: 6,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
 
     // Wait a moment for the success animation
@@ -109,17 +109,17 @@ export default function CombinedGreetingModal({
           Animated.timing(modalOpacity, {
             toValue: 0,
             duration: 200,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(modalScale, {
             toValue: 0.9,
             duration: 200,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(slideUpAnim, {
             toValue: 30,
             duration: 200,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]).start(() => {
           onClose();
@@ -138,17 +138,17 @@ export default function CombinedGreetingModal({
       Animated.timing(modalOpacity, {
         toValue: 0,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(modalScale, {
         toValue: 0.9,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(slideUpAnim, {
         toValue: 30,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => {
       onClose();
@@ -160,7 +160,7 @@ export default function CombinedGreetingModal({
       toValue: 1,
       tension: 100,
       friction: 6,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   };
 
@@ -169,7 +169,7 @@ export default function CombinedGreetingModal({
       toValue: 0,
       tension: 100,
       friction: 6,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   };
 

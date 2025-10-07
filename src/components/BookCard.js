@@ -13,7 +13,7 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
     setIsPressed(true);
     Animated.spring(scaleAnim, {
       toValue: 0.95,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   };
 
@@ -21,7 +21,7 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
     setIsPressed(false);
     Animated.spring(scaleAnim, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   };
 
