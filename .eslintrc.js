@@ -28,37 +28,40 @@ module.exports = {
     'react-native/no-inline-styles': 'warn',
     'react-native/no-color-literals': 'warn',
     'react-native/no-raw-text': 'off', // Can be too restrictive
-    
+
     // React rules
     'react/prop-types': 'off', // Using TypeScript
     'react/react-in-jsx-scope': 'off', // Not needed in React 17+
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
-    
+
     // General JavaScript/TypeScript rules
     'no-console': 'warn',
     'no-debugger': 'error',
     'no-unused-vars': 'off', // Use TypeScript version
-    '@typescript-eslint/no-unused-vars': ['error', { 
-      argsIgnorePattern: '^_',
-      varsIgnorePattern: '^_',
-    }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+      },
+    ],
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/prefer-const': 'error',
     '@typescript-eslint/no-var-requires': 'error',
-    
+
     // Code style
     'prefer-const': 'error',
     'no-var': 'error',
     'object-shorthand': 'error',
     'prefer-template': 'error',
-    
+
     // Import rules
     'no-duplicate-imports': 'error',
-    
+
     // Accessibility
     'react-native/no-accessibility-info': 'warn',
-    
+
     // Performance
     'react-native/no-single-element-style-arrays': 'error',
   },

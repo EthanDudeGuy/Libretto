@@ -35,8 +35,8 @@ class OpenLibraryAPI {
         'has_fulltext',
         'ia',
         'public_scan_b',
-        'number_of_pages_median'
-      ]
+        'number_of_pages_median',
+      ],
     } = options;
 
     // Build query parameters manually for better React Native compatibility
@@ -45,16 +45,18 @@ class OpenLibraryAPI {
       `limit=${limit}`,
       `offset=${offset}`,
       `lang=${lang}`,
-      `fields=${fields.join(',')}`
+      `fields=${fields.join(',')}`,
     ].join('&');
 
     try {
       const url = `${this.baseUrl}/search.json?${queryParams}`;
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
-        throw new Error(`Open Library API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Open Library API error: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -113,9 +115,11 @@ class OpenLibraryAPI {
   async getWorkDetails(workKey) {
     try {
       const response = await fetch(`${this.baseUrl}/works/${workKey}.json`);
-      
+
       if (!response.ok) {
-        throw new Error(`Open Library API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Open Library API error: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -133,21 +137,22 @@ class OpenLibraryAPI {
    * @returns {Promise<Object>} Editions data
    */
   async getWorkEditions(workKey, options = {}) {
-    const {
-      limit = 10,
-      offset = 0
-    } = options;
+    const { limit = 10, offset = 0 } = options;
 
     const params = new URLSearchParams({
       limit: limit.toString(),
-      offset: offset.toString()
+      offset: offset.toString(),
     });
 
     try {
-      const response = await fetch(`${this.baseUrl}/works/${workKey}/editions.json?${params}`);
-      
+      const response = await fetch(
+        `${this.baseUrl}/works/${workKey}/editions.json?${params}`
+      );
+
       if (!response.ok) {
-        throw new Error(`Open Library API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Open Library API error: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -165,11 +170,13 @@ class OpenLibraryAPI {
    */
   formatSearchResults(apiResponse) {
     const books = apiResponse.docs?.map(doc => this.formatBookData(doc)) || [];
-    
+
     return {
       books,
       totalItems: apiResponse.numFound || 0,
-      hasMore: books.length > 0 && (apiResponse.numFound > books.length + (apiResponse.start || 0))
+      hasMore:
+        books.length > 0 &&
+        apiResponse.numFound > books.length + (apiResponse.start || 0),
     };
   }
 
@@ -190,8 +197,12 @@ class OpenLibraryAPI {
       categories: doc.subject || [],
       language: doc.language?.[0] || 'en',
       isbn: this.extractISBN(doc.isbn),
-      thumbnail: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null,
-      previewLink: doc.ia?.[0] ? `https://archive.org/details/${doc.ia[0]}` : null,
+      thumbnail: doc.cover_i
+        ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
+        : null,
+      previewLink: doc.ia?.[0]
+        ? `https://archive.org/details/${doc.ia[0]}`
+        : null,
       infoLink: doc.key ? `https://openlibrary.org${doc.key}` : null,
       isAvailable: doc.has_fulltext || false,
       // Additional Open Library specific fields
@@ -205,7 +216,7 @@ class OpenLibraryAPI {
       progress: 0,
       pageChapter: 1,
       // Source identifier
-      source: 'openlibrary'
+      source: 'openlibrary',
     };
   }
 
@@ -218,14 +229,17 @@ class OpenLibraryAPI {
     return {
       id: work.key?.replace('/works/', ''),
       title: work.title || 'Unknown Title',
-      author: work.authors?.map(author => author.author?.key?.replace('/authors/', '')).join(', ') || 'Unknown Author',
+      author:
+        work.authors
+          ?.map(author => author.author?.key?.replace('/authors/', ''))
+          .join(', ') || 'Unknown Author',
       description: work.description || '',
       publishedDate: work.first_publish_date || '',
       subjects: work.subjects || [],
       // Additional work details
       covers: work.covers || [],
       links: work.links || [],
-      source: 'openlibrary'
+      source: 'openlibrary',
     };
   }
 
@@ -235,20 +249,24 @@ class OpenLibraryAPI {
    * @returns {Object} Formatted editions data
    */
   formatEditionsData(editionsResponse) {
-    const editions = editionsResponse.entries?.map(edition => ({
-      id: edition.key?.replace('/books/', ''),
-      title: edition.title || 'Unknown Title',
-      isbn: this.extractISBN(edition.isbn_13 || edition.isbn_10),
-      publishDate: edition.publish_date || '',
-      publisher: edition.publishers?.[0] || '',
-      pageCount: edition.number_of_pages || 0,
-      cover: edition.covers?.[0] ? `https://covers.openlibrary.org/b/id/${edition.covers[0]}-M.jpg` : null,
-      language: edition.languages?.[0]?.key?.replace('/languages/', '') || 'en'
-    })) || [];
+    const editions =
+      editionsResponse.entries?.map(edition => ({
+        id: edition.key?.replace('/books/', ''),
+        title: edition.title || 'Unknown Title',
+        isbn: this.extractISBN(edition.isbn_13 || edition.isbn_10),
+        publishDate: edition.publish_date || '',
+        publisher: edition.publishers?.[0] || '',
+        pageCount: edition.number_of_pages || 0,
+        cover: edition.covers?.[0]
+          ? `https://covers.openlibrary.org/b/id/${edition.covers[0]}-M.jpg`
+          : null,
+        language:
+          edition.languages?.[0]?.key?.replace('/languages/', '') || 'en',
+      })) || [];
 
     return {
       editions,
-      totalItems: editionsResponse.size || 0
+      totalItems: editionsResponse.size || 0,
     };
   }
 
@@ -259,11 +277,11 @@ class OpenLibraryAPI {
    */
   extractISBN(isbnData) {
     if (!isbnData) return null;
-    
+
     if (Array.isArray(isbnData)) {
       return isbnData[0] || null;
     }
-    
+
     return isbnData;
   }
 
@@ -297,23 +315,24 @@ const openLibraryAPI = new OpenLibraryAPI();
 const testPageCountAPI = async () => {
   try {
     console.log('Testing Open Library Search API with Harry Potter...');
-    const testUrl = 'https://openlibrary.org/search.json?q=harry+potter&fields=title,author_name,number_of_pages_median&limit=5';
+    const testUrl =
+      'https://openlibrary.org/search.json?q=harry+potter&fields=title,author_name,number_of_pages_median&limit=5';
     console.log('API URL:', testUrl);
-    
+
     const response = await fetch(testUrl);
     const data = await response.json();
-    
+
     console.log('API Response:', data);
-    
+
     if (data.docs && data.docs.length > 0) {
       const firstBook = data.docs[0];
       console.log('First book:', {
         title: firstBook.title,
         author: firstBook.author_name,
-        pageCount: firstBook.number_of_pages_median
+        pageCount: firstBook.number_of_pages_median,
       });
     }
-    
+
     return data;
   } catch (error) {
     console.error('Test failed:', error);

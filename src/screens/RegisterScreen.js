@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -24,13 +24,23 @@ export default function RegisterScreen({ onNavigateToLogin }) {
   const { register } = useAuth();
 
   const handleRegister = async () => {
-    if (!firstName.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (
+      !firstName.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !confirmPassword.trim()
+    ) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     setIsLoading(true);
-    const result = await register(firstName.trim(), email.trim(), password, confirmPassword);
+    const result = await register(
+      firstName.trim(),
+      email.trim(),
+      password,
+      confirmPassword
+    );
     setIsLoading(false);
 
     if (!result.success) {
@@ -39,8 +49,8 @@ export default function RegisterScreen({ onNavigateToLogin }) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -51,13 +61,15 @@ export default function RegisterScreen({ onNavigateToLogin }) {
           <View style={styles.content}>
             {/* Logo and Title */}
             <View style={styles.header}>
-              <Image 
-                source={require('../../assets/logo.png')} 
+              <Image
+                source={require('../../assets/logo.png')}
                 style={styles.logo}
-                resizeMode="contain"
+                resizeMode='contain'
               />
               <Text style={styles.title}>Join Libretto</Text>
-              <Text style={styles.subtitle}>Create your account to start your literary journey</Text>
+              <Text style={styles.subtitle}>
+                Create your account to start your literary journey
+              </Text>
             </View>
 
             {/* Form */}
@@ -68,9 +80,9 @@ export default function RegisterScreen({ onNavigateToLogin }) {
                   style={styles.input}
                   value={firstName}
                   onChangeText={setFirstName}
-                  placeholder="Enter your first name"
+                  placeholder='Enter your first name'
                   placeholderTextColor={theme.colors.textMuted}
-                  autoCapitalize="words"
+                  autoCapitalize='words'
                   autoCorrect={false}
                 />
               </View>
@@ -81,10 +93,10 @@ export default function RegisterScreen({ onNavigateToLogin }) {
                   style={styles.input}
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="Enter your email"
+                  placeholder='Enter your email'
                   placeholderTextColor={theme.colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
+                  keyboardType='email-address'
+                  autoCapitalize='none'
                   autoCorrect={false}
                 />
               </View>
@@ -95,10 +107,10 @@ export default function RegisterScreen({ onNavigateToLogin }) {
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Create a password (min 6 characters)"
+                  placeholder='Create a password (min 6 characters)'
                   placeholderTextColor={theme.colors.textMuted}
                   secureTextEntry
-                  autoCapitalize="none"
+                  autoCapitalize='none'
                   autoCorrect={false}
                 />
               </View>
@@ -109,16 +121,19 @@ export default function RegisterScreen({ onNavigateToLogin }) {
                   style={styles.input}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  placeholder="Confirm your password"
+                  placeholder='Confirm your password'
                   placeholderTextColor={theme.colors.textMuted}
                   secureTextEntry
-                  autoCapitalize="none"
+                  autoCapitalize='none'
                   autoCorrect={false}
                 />
               </View>
 
               <TouchableOpacity
-                style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
+                style={[
+                  styles.registerButton,
+                  isLoading && styles.registerButtonDisabled,
+                ]}
                 onPress={handleRegister}
                 disabled={isLoading}
               >

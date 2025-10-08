@@ -9,7 +9,7 @@ export default function ProtectedRoute({ children }) {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.blue} />
+        <ActivityIndicator size='large' color={theme.colors.blue} />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );

@@ -7,14 +7,15 @@ export const ErrorTypes = {
   NETWORK_ERROR: 'NETWORK_ERROR',
   API_ERROR: 'API_ERROR',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
-  UNKNOWN_ERROR: 'UNKNOWN_ERROR'
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
 };
 
 export const ErrorMessages = {
   NETWORK_ERROR: 'Please check your internet connection and try again.',
-  API_ERROR: 'I\'m having trouble connecting to the AI service. Please try again in a moment.',
+  API_ERROR:
+    "I'm having trouble connecting to the AI service. Please try again in a moment.",
   VALIDATION_ERROR: 'Please check your input and try again.',
-  UNKNOWN_ERROR: 'Something went wrong. Please try again.'
+  UNKNOWN_ERROR: 'Something went wrong. Please try again.',
 };
 
 /**
@@ -25,24 +26,28 @@ export const ErrorMessages = {
  */
 export const handleAPIError = (error, context = 'API call') => {
   console.error(`Error in ${context}:`, error);
-  
+
   if (error.message) {
     // Check for specific error patterns
-    if (error.message.includes('Network request failed') || 
-        error.message.includes('fetch')) {
+    if (
+      error.message.includes('Network request failed') ||
+      error.message.includes('fetch')
+    ) {
       return ErrorMessages.NETWORK_ERROR;
     }
-    
-    if (error.message.includes('Backend API error') || 
-        error.message.includes('Claude API')) {
+
+    if (
+      error.message.includes('Backend API error') ||
+      error.message.includes('Claude API')
+    ) {
       return ErrorMessages.API_ERROR;
     }
-    
+
     if (error.message.includes('Invalid response format')) {
       return ErrorMessages.API_ERROR;
     }
   }
-  
+
   return ErrorMessages.UNKNOWN_ERROR;
 };
 
@@ -52,45 +57,48 @@ export const handleAPIError = (error, context = 'API call') => {
  * @param {string} fallbackMessage - Message to show if response is invalid
  * @returns {Object} Standardized response object
  */
-export const handleClaudeResponse = (response, fallbackMessage = 'I\'m sorry, I couldn\'t process that request.') => {
+export const handleClaudeResponse = (
+  response,
+  fallbackMessage = "I'm sorry, I couldn't process that request."
+) => {
   if (!response || typeof response !== 'object') {
     return {
       success: false,
       message: fallbackMessage,
-      error: 'Invalid response format'
+      error: 'Invalid response format',
     };
   }
-  
+
   // Handle success case
   if (response.success && response.message) {
     return {
       success: true,
-      message: response.message.trim()
+      message: response.message.trim(),
     };
   }
-  
+
   // Handle error case with message
   if (response.error) {
     return {
       success: false,
       message: handleAPIError(new Error(response.error)),
-      error: response.error
+      error: response.error,
     };
   }
-  
+
   // Handle case where there's a message but no explicit success flag
   if (response.message) {
     return {
       success: true,
-      message: response.message.trim()
+      message: response.message.trim(),
     };
   }
-  
+
   // Fallback for unexpected response format
   return {
     success: false,
     message: fallbackMessage,
-    error: 'Unexpected response format'
+    error: 'Unexpected response format',
   };
 };
 
@@ -104,7 +112,7 @@ export const validateAPIResponse = (data, requiredFields = ['success']) => {
   if (!data || typeof data !== 'object') {
     return false;
   }
-  
+
   return requiredFields.every(field => data.hasOwnProperty(field));
 };
 
@@ -120,7 +128,7 @@ export const createError = (type, message, details = {}) => {
     type,
     message,
     details,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 };
 
@@ -136,11 +144,11 @@ export const logError = (error, context = 'Unknown', additionalInfo = {}) => {
     message: error.message || error.toString(),
     stack: error.stack,
     timestamp: new Date().toISOString(),
-    ...additionalInfo
+    ...additionalInfo,
   };
-  
+
   console.error('Application Error:', errorInfo);
-  
+
   // In production, you might want to send this to an error tracking service
   // like Sentry, Bugsnag, or LogRocket
 };

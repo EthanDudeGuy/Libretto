@@ -6,15 +6,15 @@ module.exports = {
   printWidth: 80,
   tabWidth: 2,
   useTabs: false,
-  
+
   // JSX specific
   jsxSingleQuote: true,
   jsxBracketSameLine: false,
-  
+
   // React Native specific
   bracketSpacing: true,
   arrowParens: 'avoid',
-  
+
   // File-specific overrides
   overrides: [
     {

@@ -1,13 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, Alert, Image, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Alert,
+  Image,
+  Animated,
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import theme from '../constants/theme';
 import BookCard from '../components/BookCard';
 import AddBookModal from '../components/AddBookModal';
-import { loadBooks, saveBooks, addBook, updateBook } from '../utils/BookStorage';
+import {
+  loadBooks,
+  saveBooks,
+  addBook,
+  updateBook,
+} from '../utils/BookStorage';
 import { useAuth } from '../context/AuthContext';
-
 
 export default function Homepage({ onNavigateToChat }) {
   const [books, setBooks] = useState([]);
@@ -37,7 +50,7 @@ export default function Homepage({ onNavigateToChat }) {
     }
   };
 
-  const handleAddBook = async (newBook) => {
+  const handleAddBook = async newBook => {
     try {
       const addedBook = await addBook(newBook);
       setBooks(prevBooks => [addedBook, ...prevBooks]); // Add new book to the beginning for top-left positioning
@@ -47,15 +60,15 @@ export default function Homepage({ onNavigateToChat }) {
     }
   };
 
-  const handleBookAddedAndNavigate = async (newBook) => {
+  const handleBookAddedAndNavigate = async newBook => {
     try {
       // Add the book to storage
       const addedBook = await addBook(newBook);
       setBooks(prevBooks => [addedBook, ...prevBooks]);
-      
+
       // Close the modal first
       setShowAddBookModal(false);
-      
+
       // Start fade out and scale animation
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -67,12 +80,11 @@ export default function Homepage({ onNavigateToChat }) {
           toValue: 0.95,
           duration: 600,
           useNativeDriver: false,
-        })
+        }),
       ]).start(() => {
         // Navigate to chat after animation completes
         onNavigateToChat(addedBook);
       });
-      
     } catch (error) {
       console.error('Error adding book:', error);
       Alert.alert('Error', 'Failed to add book to your library');
@@ -95,7 +107,10 @@ export default function Homepage({ onNavigateToChat }) {
 
   const updateBookmark = async (bookId, newPage, chapter) => {
     try {
-      const updatedBooks = await updateBook(bookId, { currentPage: newPage, chapter });
+      const updatedBooks = await updateBook(bookId, {
+        currentPage: newPage,
+        chapter,
+      });
       setBooks(updatedBooks);
     } catch (error) {
       console.error('Error updating bookmark:', error);
@@ -103,8 +118,7 @@ export default function Homepage({ onNavigateToChat }) {
     }
   };
 
-
-  const handleChatWithBook = (book) => {
+  const handleChatWithBook = book => {
     // Start fade out and scale animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -116,7 +130,7 @@ export default function Homepage({ onNavigateToChat }) {
         toValue: 0.95,
         duration: 600,
         useNativeDriver: false,
-      })
+      }),
     ]).start(() => {
       // Navigate to chat after animation completes
       onNavigateToChat(book);
@@ -144,11 +158,10 @@ export default function Homepage({ onNavigateToChat }) {
     setShowSettings(true);
   };
 
-
   const renderBook = ({ item }) => (
     <View style={styles.bookCardContainer}>
-      <BookCard 
-        book={item} 
+      <BookCard
+        book={item}
         onUpdateBookmark={updateBookmark}
         onChat={handleChatWithBook}
       />
@@ -157,62 +170,71 @@ export default function Homepage({ onNavigateToChat }) {
 
   return (
     <View style={styles.appContainer}>
-      <Animated.View style={[styles.container, { 
-        opacity: fadeAnim,
-        transform: [{ scale: scaleAnim }]
-      }]}>
+      <Animated.View
+        style={[
+          styles.container,
+          {
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
         {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <Image 
-                source={require('../../assets/logo.png')} 
+              <Image
+                source={require('../../assets/logo.png')}
                 style={styles.logo}
-                resizeMode="contain"
+                resizeMode='contain'
               />
               <View>
                 <Text style={styles.title}>Libretto</Text>
                 {user && (
-                  <Text style={styles.welcomeText}>Welcome, {user.firstName || user.name}</Text>
+                  <Text style={styles.welcomeText}>
+                    Welcome, {user.firstName || user.name}
+                  </Text>
                 )}
               </View>
             </View>
             <View style={styles.headerButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={handleAddBookPress}
               >
                 <Animated.View
                   style={{
-                    transform: [{
-                      rotate: spinValue.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0deg', '360deg']
-                      })
-                    }]
+                    transform: [
+                      {
+                        rotate: spinValue.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '360deg'],
+                        }),
+                      },
+                    ],
                   }}
                 >
-                  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <Path 
-                      d="M7 12L12 12M12 12L17 12M12 12V7M12 12L12 17" 
-                      stroke={theme.colors.textPrimary} 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
+                  <Svg width='24' height='24' viewBox='0 0 24 24' fill='none'>
+                    <Path
+                      d='M7 12L12 12M12 12L17 12M12 12V7M12 12L12 17'
+                      stroke={theme.colors.textPrimary}
+                      strokeWidth='2'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
                     />
                   </Svg>
                 </Animated.View>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.settingsButton}
                 onPress={() => setShowSettings(true)}
               >
-                <Image 
-                source={require('../../assets/setting.png')} 
-                style={styles.settingsIcon}
-                resizeMode="contain"
-                tintColor={theme.colors.textPrimary}
-              />
+                <Image
+                  source={require('../../assets/setting.png')}
+                  style={styles.settingsIcon}
+                  resizeMode='contain'
+                  tintColor={theme.colors.textPrimary}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -221,21 +243,24 @@ export default function Homepage({ onNavigateToChat }) {
         {/* Main Content Area */}
         <View style={styles.mainContent}>
           <View style={styles.contentContainer}>
-            
             {loading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading your books...</Text>
               </View>
             ) : books.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No books in your library yet</Text>
-                <Text style={styles.emptySubtext}>Tap the + button to add your first book!</Text>
+                <Text style={styles.emptyText}>
+                  No books in your library yet
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  Tap the + button to add your first book!
+                </Text>
               </View>
             ) : (
               <FlatList
                 data={books}
                 renderItem={renderBook}
-                keyExtractor={(item) => item.id}
+                keyExtractor={item => item.id}
                 numColumns={3}
                 columnWrapperStyle={styles.row}
                 contentContainerStyle={styles.listContainer}
@@ -248,31 +273,42 @@ export default function Homepage({ onNavigateToChat }) {
         {/* Footer Section */}
         <View style={styles.footer}>
           <View style={styles.footerContent}>
-            <Text style={styles.footerText}>© 2025 Libretto - Your literary journey</Text>
+            <Text style={styles.footerText}>
+              © 2025 Libretto - Your literary journey
+            </Text>
           </View>
         </View>
       </Animated.View>
 
-
       <Modal
         visible={showSettings}
         transparent={true}
-        animationType="fade"
+        animationType='fade'
         onRequestClose={() => setShowSettings(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.settingsModal}>
             <Text style={styles.settingsTitle}>Settings</Text>
-            
-            <TouchableOpacity 
-              style={[styles.settingsOption, { backgroundColor: '#ff6b6b', borderColor: '#ff5252' }]} 
+
+            <TouchableOpacity
+              style={[
+                styles.settingsOption,
+                { backgroundColor: '#ff6b6b', borderColor: '#ff5252' },
+              ]}
               onPress={handleLogout}
             >
-              <Text style={[styles.settingsOptionText, { color: 'white', fontWeight: 'bold' }]}>🚪 Logout</Text>
+              <Text
+                style={[
+                  styles.settingsOptionText,
+                  { color: 'white', fontWeight: 'bold' },
+                ]}
+              >
+                🚪 Logout
+              </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.cancelButton} 
+
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={() => setShowSettings(false)}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -292,25 +328,40 @@ export default function Homepage({ onNavigateToChat }) {
       <Modal
         visible={showLogoutConfirm}
         transparent={true}
-        animationType="fade"
+        animationType='fade'
         onRequestClose={cancelLogout}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.settingsModal}>
             <Text style={styles.settingsTitle}>Confirm Logout</Text>
-            <Text style={[styles.settingsOptionText, { marginBottom: 20, textAlign: 'center' }]}>
+            <Text
+              style={[
+                styles.settingsOptionText,
+                { marginBottom: 20, textAlign: 'center' },
+              ]}
+            >
               Are you sure you want to logout?
             </Text>
-            
-            <TouchableOpacity 
-              style={[styles.settingsOption, { backgroundColor: '#ff6b6b', borderColor: '#ff5252' }]} 
+
+            <TouchableOpacity
+              style={[
+                styles.settingsOption,
+                { backgroundColor: '#ff6b6b', borderColor: '#ff5252' },
+              ]}
               onPress={confirmLogout}
             >
-              <Text style={[styles.settingsOptionText, { color: 'white', fontWeight: 'bold' }]}>🚪 Logout</Text>
+              <Text
+                style={[
+                  styles.settingsOptionText,
+                  { color: 'white', fontWeight: 'bold' },
+                ]}
+              >
+                🚪 Logout
+              </Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.cancelButton} 
+
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={cancelLogout}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -393,7 +444,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 0,

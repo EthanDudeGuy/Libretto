@@ -1,15 +1,18 @@
 # Book Chat Backend Server
 
-This is the backend server that handles Claude API integration for the Libretto book chat application.
+This is the backend server that handles Claude API integration for the Libretto book chat
+application.
 
 ## Setup
 
 1. **Install dependencies:**
+
    ```bash
    pip3 install fastapi uvicorn anthropic python-dotenv
    ```
 
 2. **Start the server:**
+
    ```bash
    python3 backend_server.py
    ```
@@ -28,6 +31,7 @@ This is the backend server that handles Claude API integration for the Libretto 
 The server uses the Claude API key that's hardcoded in the file. For production, you should:
 
 1. Create a `.env` file with:
+
    ```
    ANTHROPIC_API_KEY=your_api_key_here
    ```

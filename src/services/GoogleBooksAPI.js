@@ -5,7 +5,7 @@ const GOOGLE_BOOKS_API_BASE = 'https://www.googleapis.com/books/v1';
 
 // You'll need to get an API key from Google Cloud Console
 // https://console.cloud.google.com/apis/credentials
-const API_KEY = 'AIzaSyB8GlhJOwWBCcX1HAvazOMCWzSGiZf9W6M'; 
+const API_KEY = 'AIzaSyB8GlhJOwWBCcX1HAvazOMCWzSGiZf9W6M';
 
 class GoogleBooksAPI {
   constructor(apiKey = API_KEY) {
@@ -31,7 +31,7 @@ class GoogleBooksAPI {
       orderBy = 'relevance',
       filter = 'partial',
       printType = 'all',
-      projection = 'full'
+      projection = 'full',
     } = options;
 
     const params = new URLSearchParams({
@@ -42,14 +42,18 @@ class GoogleBooksAPI {
       orderBy,
       filter,
       printType,
-      projection
+      projection,
     });
 
     try {
-      const response = await fetch(`${GOOGLE_BOOKS_API_BASE}/volumes?${params}`);
-      
+      const response = await fetch(
+        `${GOOGLE_BOOKS_API_BASE}/volumes?${params}`
+      );
+
       if (!response.ok) {
-        throw new Error(`Google Books API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Google Books API error: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -67,10 +71,14 @@ class GoogleBooksAPI {
    */
   async getBookDetails(volumeId) {
     try {
-      const response = await fetch(`${GOOGLE_BOOKS_API_BASE}/volumes/${volumeId}?key=${this.apiKey}`);
-      
+      const response = await fetch(
+        `${GOOGLE_BOOKS_API_BASE}/volumes/${volumeId}?key=${this.apiKey}`
+      );
+
       if (!response.ok) {
-        throw new Error(`Google Books API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Google Books API error: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
@@ -87,12 +95,13 @@ class GoogleBooksAPI {
    * @returns {Object} Formatted results
    */
   formatSearchResults(apiResponse) {
-    const books = apiResponse.items?.map(item => this.formatBookData(item)) || [];
-    
+    const books =
+      apiResponse.items?.map(item => this.formatBookData(item)) || [];
+
     return {
       books,
       totalItems: apiResponse.totalItems || 0,
-      hasMore: books.length > 0 && (apiResponse.totalItems > books.length)
+      hasMore: books.length > 0 && apiResponse.totalItems > books.length,
     };
   }
 
@@ -104,7 +113,7 @@ class GoogleBooksAPI {
   formatBookData(volume) {
     const volumeInfo = volume.volumeInfo || {};
     const accessInfo = volume.accessInfo || {};
-    
+
     return {
       id: volume.id,
       title: volumeInfo.title || 'Unknown Title',
@@ -116,7 +125,10 @@ class GoogleBooksAPI {
       categories: volumeInfo.categories || [],
       language: volumeInfo.language || 'en',
       isbn: this.extractISBN(volumeInfo.industryIdentifiers),
-      thumbnail: volumeInfo.imageLinks?.thumbnail || volumeInfo.imageLinks?.smallThumbnail || null,
+      thumbnail:
+        volumeInfo.imageLinks?.thumbnail ||
+        volumeInfo.imageLinks?.smallThumbnail ||
+        null,
       previewLink: volumeInfo.previewLink || null,
       infoLink: volumeInfo.infoLink || null,
       isAvailable: accessInfo.pdf?.isAvailable || false,
@@ -125,7 +137,7 @@ class GoogleBooksAPI {
       totalPages: volumeInfo.pageCount || 0,
       chapter: 1,
       progress: 0,
-      pageChapter: 1
+      pageChapter: 1,
     };
   }
 
@@ -145,11 +157,11 @@ class GoogleBooksAPI {
    */
   extractISBN(identifiers) {
     if (!identifiers) return null;
-    
-    const isbn = identifiers.find(id => 
-      id.type === 'ISBN_13' || id.type === 'ISBN_10'
+
+    const isbn = identifiers.find(
+      id => id.type === 'ISBN_13' || id.type === 'ISBN_10'
     );
-    
+
     return isbn ? isbn.identifier : null;
   }
 

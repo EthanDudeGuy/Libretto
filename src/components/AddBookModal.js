@@ -17,7 +17,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import theme from '../constants/theme';
 import openLibraryAPI from '../services/OpenLibraryAPI';
 
-export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedAndNavigate }) {
+export default function AddBookModal({
+  visible,
+  onClose,
+  onAddBook,
+  onBookAddedAndNavigate,
+}) {
   const [pageChapter, setPageChapter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -71,10 +76,10 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
 
     // Parse current page from pageChapter input
     const currentPage = parseInt(pageChapter.trim()) || 1;
-    
+
     // Use page count from Open Library API
     const totalPages = selectedGoogleBook?.pageCount || null;
-    
+
     if (!totalPages || totalPages <= 0) {
       Alert.alert(
         'Page Count Not Available',
@@ -133,30 +138,38 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
     try {
       const results = await openLibraryAPI.searchBooks(searchQuery, {
         limit: 15,
-        fields: ['title', 'author_name', 'number_of_pages_median', 'key', 'first_publish_year', 'cover_i']
+        fields: [
+          'title',
+          'author_name',
+          'number_of_pages_median',
+          'key',
+          'first_publish_year',
+          'cover_i',
+        ],
       });
-      
+
       setSearchResults(results.books || []);
       setShowSearchResults(true);
     } catch (error) {
-      Alert.alert('Search Error', 'Failed to search for books. Please try again.');
+      Alert.alert(
+        'Search Error',
+        'Failed to search for books. Please try again.'
+      );
       console.error('Search error:', error);
     } finally {
       setIsSearching(false);
     }
   };
 
-
-
-  const selectBook = (book) => {
+  const selectBook = book => {
     setPageChapter(''); // Leave page field empty - user must input their current page
     setShowSearchResults(false);
     setSearchQuery('');
-    
+
     // Store the Open Library book data (already includes page count from search)
     setSelectedGoogleBook({
       ...book,
-      pageCountSource: book.pageCount > 0 ? 'openlibrary' : 'none'
+      pageCountSource: book.pageCount > 0 ? 'openlibrary' : 'none',
     });
   };
 
@@ -169,8 +182,8 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
     <Modal
       visible={visible}
       transparent={true}
-      animationType="fade"
-      presentationStyle="overFullScreen"
+      animationType='fade'
+      presentationStyle='overFullScreen'
       onRequestClose={handleCancel}
     >
       <KeyboardAvoidingView
@@ -178,28 +191,33 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.overlay}>
-          <Animated.View style={[
-            styles.modal,
-            { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
-          ]}>
+          <Animated.View
+            style={[
+              styles.modal,
+              { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
+            ]}
+          >
             <Text style={styles.title}>Add book</Text>
-            
+
             {/* Search Section */}
             <View style={styles.searchSection}>
               <Text style={styles.sectionTitle}>Search for a book</Text>
-              
+
               <View style={styles.searchContainer}>
                 <TextInput
                   style={styles.searchInput}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  placeholder="Search by title, author, or ISBN..."
+                  placeholder='Search by title, author, or ISBN...'
                   placeholderTextColor={theme.colors.textMuted}
                   onSubmitEditing={handleSearch}
-                  returnKeyType="search"
+                  returnKeyType='search'
                 />
-                <TouchableOpacity 
-                  style={[styles.searchButton, isSearching && styles.searchButtonDisabled]} 
+                <TouchableOpacity
+                  style={[
+                    styles.searchButton,
+                    isSearching && styles.searchButtonDisabled,
+                  ]}
                   onPress={handleSearch}
                   disabled={isSearching}
                 >
@@ -217,7 +235,7 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
                   <Text style={styles.resultsTitle}>
                     Search Results ({searchResults.length})
                   </Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.clearResultsButton}
                     onPress={() => setShowSearchResults(false)}
                   >
@@ -226,31 +244,42 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
                 </View>
                 <FlatList
                   data={searchResults}
-                  keyExtractor={(item) => item.id}
+                  keyExtractor={item => item.id}
                   renderItem={({ item, index }) => (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[
                         styles.searchResultItem,
-                        index === 0 && styles.topResultItem // Highlight top result
+                        index === 0 && styles.topResultItem, // Highlight top result
                       ]}
                       onPress={() => selectBook(item)}
                     >
                       <View style={styles.searchResultContent}>
                         {item.thumbnail && (
-                          <Image source={{ uri: item.thumbnail }} style={styles.searchResultThumbnail} />
+                          <Image
+                            source={{ uri: item.thumbnail }}
+                            style={styles.searchResultThumbnail}
+                          />
                         )}
                         <View style={styles.searchResultText}>
                           <View style={styles.resultHeader}>
-                            <Text style={styles.searchResultTitle} numberOfLines={2}>
+                            <Text
+                              style={styles.searchResultTitle}
+                              numberOfLines={2}
+                            >
                               {item.title}
                             </Text>
                             {index === 0 && (
                               <View style={styles.topResultBadge}>
-                                <Text style={styles.topResultBadgeText}>Best Match</Text>
+                                <Text style={styles.topResultBadgeText}>
+                                  Best Match
+                                </Text>
                               </View>
                             )}
                           </View>
-                          <Text style={styles.searchResultAuthor} numberOfLines={1}>
+                          <Text
+                            style={styles.searchResultAuthor}
+                            numberOfLines={1}
+                          >
                             {item.author}
                           </Text>
                           <View style={styles.resultDetails}>
@@ -265,7 +294,10 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
                               </Text>
                             )}
                             {item.publisher && (
-                              <Text style={styles.searchResultPublisher} numberOfLines={1}>
+                              <Text
+                                style={styles.searchResultPublisher}
+                                numberOfLines={1}
+                              >
                                 {item.publisher}
                               </Text>
                             )}
@@ -285,14 +317,18 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
                 <Text style={styles.selectedBookTitle}>Selected book:</Text>
                 <View style={styles.selectedBookContent}>
                   {selectedGoogleBook.thumbnail && (
-                    <Image 
-                      source={{ uri: selectedGoogleBook.thumbnail }} 
-                      style={styles.selectedBookThumbnail} 
+                    <Image
+                      source={{ uri: selectedGoogleBook.thumbnail }}
+                      style={styles.selectedBookThumbnail}
                     />
                   )}
                   <View style={styles.selectedBookInfo}>
-                    <Text style={styles.selectedBookName}>{selectedGoogleBook.title}</Text>
-                    <Text style={styles.selectedBookAuthor}>by {selectedGoogleBook.author}</Text>
+                    <Text style={styles.selectedBookName}>
+                      {selectedGoogleBook.title}
+                    </Text>
+                    <Text style={styles.selectedBookAuthor}>
+                      by {selectedGoogleBook.author}
+                    </Text>
                     {selectedGoogleBook.pageCount && (
                       <Text style={styles.selectedBookPages}>
                         {selectedGoogleBook.pageCount} pages
@@ -304,26 +340,30 @@ export default function AddBookModal({ visible, onClose, onAddBook, onBookAddedA
             )}
 
             <View style={styles.form}>
-
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Current Page / Chapter</Text>
                 <TextInput
                   style={styles.input}
                   value={pageChapter}
                   onChangeText={setPageChapter}
-                  placeholder="Enter your current page or chapter"
+                  placeholder='Enter your current page or chapter'
                   placeholderTextColor={theme.colors.textMuted}
                 />
               </View>
-
             </View>
 
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={handleCancel}
+              >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.addButton} onPress={handleAddBook}>
+
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={handleAddBook}
+              >
                 <Text style={styles.addButtonText}>Add book</Text>
               </TouchableOpacity>
             </View>
@@ -466,7 +506,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     flex: 1,
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     borderRadius: 12,
     padding: 16,
   },
@@ -504,7 +544,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
   searchButton: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -594,12 +634,12 @@ const styles = StyleSheet.create({
   },
   clearResultsText: {
     fontSize: 12,
-    color: theme.colors.blue,
+    color: theme.colors.orange,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
   },
   topResultItem: {
-    borderColor: theme.colors.blue,
+    borderColor: theme.colors.orange,
     borderWidth: 2,
     backgroundColor: theme.colors.surface,
   },
@@ -610,7 +650,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   topResultBadge: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,

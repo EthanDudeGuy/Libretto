@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
           name: 'Demo User',
           email: 'demo@libretto.com',
           password: 'demo123',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
         await AsyncStorage.setItem('users', JSON.stringify([demoUser]));
       }
@@ -65,9 +65,11 @@ export const AuthProvider = ({ children }) => {
       // Simple demo validation - in production, this would be handled by your backend
       const users = await AsyncStorage.getItem('users');
       const userList = users ? JSON.parse(users) : [];
-      
-      const foundUser = userList.find(u => u.email === email && u.password === password);
-      
+
+      const foundUser = userList.find(
+        u => u.email === email && u.password === password
+      );
+
       if (!foundUser) {
         throw new Error('Invalid email or password');
       }
@@ -78,7 +80,7 @@ export const AuthProvider = ({ children }) => {
         firstName: foundUser.firstName,
         name: foundUser.name,
         email: foundUser.email,
-        createdAt: foundUser.createdAt
+        createdAt: foundUser.createdAt,
       };
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -111,7 +113,7 @@ export const AuthProvider = ({ children }) => {
       // Check if user already exists
       const users = await AsyncStorage.getItem('users');
       const userList = users ? JSON.parse(users) : [];
-      
+
       const existingUser = userList.find(u => u.email === email);
       if (existingUser) {
         throw new Error('User with this email already exists');
@@ -124,7 +126,7 @@ export const AuthProvider = ({ children }) => {
         name: firstName.trim() + ' User', // For backwards compatibility
         email,
         password, // In production, this should be hashed
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       userList.push(newUser);
@@ -136,7 +138,7 @@ export const AuthProvider = ({ children }) => {
         firstName: newUser.firstName,
         name: newUser.name,
         email: newUser.email,
-        createdAt: newUser.createdAt
+        createdAt: newUser.createdAt,
       };
 
       await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -151,10 +153,10 @@ export const AuthProvider = ({ children }) => {
     try {
       // Clear user data from AsyncStorage
       await AsyncStorage.removeItem('user');
-      
+
       // Clear user state
       setUser(null);
-      
+
       // Force a state update by setting loading briefly
       setIsLoading(true);
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -186,15 +188,11 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     forceLogout,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
   };
 
   // Debug logging for auth state changes
   console.log('AuthContext render - user:', user, 'isAuthenticated:', !!user);
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

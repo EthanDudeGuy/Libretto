@@ -7,10 +7,10 @@ export default function SimpleBookImage({ book }) {
     <View style={styles.container}>
       <View style={styles.bookImage}>
         {book.thumbnail ? (
-          <Image 
-            source={{ uri: book.thumbnail }} 
+          <Image
+            source={{ uri: book.thumbnail }}
             style={styles.bookThumbnail}
-            resizeMode="cover"
+            resizeMode='cover'
           />
         ) : (
           <View style={styles.imagePlaceholder}>

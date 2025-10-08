@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  TextInput, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   Animated,
   Image,
-  PanResponder
+  PanResponder,
 } from 'react-native';
 import theme from '../constants/theme';
 import { updateBook, calculateProgress } from '../utils/BookStorage';
@@ -30,7 +30,7 @@ export default function BookChat({ book, onBack }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const scrollViewRef = useRef();
   const { user } = useAuth();
-  
+
   // Animation values
   const pageFadeAnim = useRef(new Animated.Value(0)).current;
   const logoPulseAnim = useRef(new Animated.Value(1)).current;
@@ -38,22 +38,18 @@ export default function BookChat({ book, onBack }) {
   const dotsAnim2 = useRef(new Animated.Value(0)).current;
   const dotsAnim3 = useRef(new Animated.Value(0)).current;
 
-
-
   // Dynamic summary generator using Google Books data
   const generatePlaceholderSummary = () => {
     const progress = currentBook.progress || 0;
     const currentPage = currentBook.currentPage || 1;
     const totalPages = currentBook.totalPages || 1;
-    
+
     if (progress === 0) {
       return `Welcome to "${currentBook.title}"! Ready to start reading?`;
     } else {
       return `Welcome back to "${currentBook.title}"! You're on page ${currentPage} of ${totalPages}. What would you like to discuss?`;
     }
   };
-
-
 
   // Update local book state when prop changes
   useEffect(() => {
@@ -149,14 +145,15 @@ export default function BookChat({ book, onBack }) {
   // Add initial AI message when component mounts
   useEffect(() => {
     const initialMessage = generatePlaceholderSummary();
-    setMessages([{
-      id: '1',
-      text: initialMessage,
-      isUser: false,
-      timestamp: new Date(),
-    }]);
+    setMessages([
+      {
+        id: '1',
+        text: initialMessage,
+        isUser: false,
+        timestamp: new Date(),
+      },
+    ]);
   }, []);
-
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -164,17 +161,25 @@ export default function BookChat({ book, onBack }) {
     }, 100);
   };
 
-  const generateAIResponse = async (userMessage) => {
+  const generateAIResponse = async userMessage => {
     try {
       // Use Claude API for smart responses
-      const claudeResponse = await sendMessageToClaude(userMessage, currentBook, messages, user);
-      
+      const claudeResponse = await sendMessageToClaude(
+        userMessage,
+        currentBook,
+        messages,
+        user
+      );
+
       if (claudeResponse.success) {
         return claudeResponse.message;
       } else {
         // Use the error handling utility for consistent error messages
         logError(new Error(claudeResponse.error), 'AI Response Generation');
-        return claudeResponse.message || handleAPIError(new Error(claudeResponse.error), 'AI Response');
+        return (
+          claudeResponse.message ||
+          handleAPIError(new Error(claudeResponse.error), 'AI Response')
+        );
       }
     } catch (error) {
       logError(error, 'AI Response Generation');
@@ -182,20 +187,20 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-  const handlePageChange = async (direction) => {
+  const handlePageChange = async direction => {
     const newPage = currentBook.currentPage + direction;
     if (newPage >= 1 && newPage <= currentBook.totalPages) {
       try {
         const newProgress = calculateProgress(newPage, currentBook.totalPages);
-        await updateBook(currentBook.id, { 
+        await updateBook(currentBook.id, {
           currentPage: newPage,
-          progress: newProgress
+          progress: newProgress,
         });
         // Update the local book state for immediate UI update
         setCurrentBook(prev => ({
           ...prev,
           currentPage: newPage,
-          progress: newProgress
+          progress: newProgress,
         }));
       } catch (error) {
         console.error('Error updating page:', error);
@@ -203,14 +208,12 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-
-
   // Create PanResponder for line dragging
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    
-    onPanResponderGrant: (event) => {
+
+    onPanResponderGrant: event => {
       // Calculate which line was touched
       const touchX = event.nativeEvent.locationX;
       const lineWidth = 3; // Width of each line
@@ -219,8 +222,8 @@ export default function BookChat({ book, onBack }) {
       const lineIndex = Math.floor(touchX / totalWidth);
       setDraggedLineIndex(lineIndex);
     },
-    
-    onPanResponderMove: (event) => {
+
+    onPanResponderMove: event => {
       // Update which line is being dragged during movement
       const touchX = event.nativeEvent.locationX;
       const lineWidth = 3;
@@ -229,44 +232,52 @@ export default function BookChat({ book, onBack }) {
       const lineIndex = Math.floor(touchX / totalWidth);
       setDraggedLineIndex(lineIndex);
     },
-    
-    onPanResponderRelease: async (event) => {
+
+    onPanResponderRelease: async event => {
       const touchX = event.nativeEvent.locationX;
       const lineWidth = 3;
       const lineSpacing = 2;
       const totalWidth = lineWidth + lineSpacing;
       const lineIndex = Math.floor(touchX / totalWidth);
-      
+
       // Convert line index to page number (assuming lines represent pages)
       const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines max
-      const newPage = Math.max(1, Math.min(currentBook.totalPages, Math.round((lineIndex / maxLines) * currentBook.totalPages) + 1));
-      
+      const newPage = Math.max(
+        1,
+        Math.min(
+          currentBook.totalPages,
+          Math.round((lineIndex / maxLines) * currentBook.totalPages) + 1
+        )
+      );
+
       if (newPage !== currentBook.currentPage) {
         try {
-          const newProgress = calculateProgress(newPage, currentBook.totalPages);
-          await updateBook(currentBook.id, { 
+          const newProgress = calculateProgress(
+            newPage,
+            currentBook.totalPages
+          );
+          await updateBook(currentBook.id, {
             currentPage: newPage,
-            progress: newProgress
+            progress: newProgress,
           });
           // Update the local book state for immediate UI update
           setCurrentBook(prev => ({
             ...prev,
             currentPage: newPage,
-            progress: newProgress
+            progress: newProgress,
           }));
         } catch (error) {
           console.error('Error updating page:', error);
         }
       }
-      
+
       setDraggedLineIndex(null);
     },
-    
+
     onPanResponderTerminate: () => {
       setDraggedLineIndex(null);
-    }
+    },
   });
-
 
   const handleSendMessage = async () => {
     if (!inputText.trim()) return;
@@ -286,18 +297,18 @@ export default function BookChat({ book, onBack }) {
     try {
       // Generate AI response from Claude
       const aiResponseText = await generateAIResponse(currentInput);
-      
+
       const aiResponse = {
         id: (Date.now() + 1).toString(),
         text: aiResponseText,
         isUser: false,
         timestamp: new Date(),
       };
-      
+
       setMessages(prev => [...prev, aiResponse]);
     } catch (error) {
       console.error('Error generating AI response:', error);
-      
+
       // Show specific error message about API configuration
       const errorResponse = {
         id: (Date.now() + 1).toString(),
@@ -305,7 +316,7 @@ export default function BookChat({ book, onBack }) {
         isUser: false,
         timestamp: new Date(),
       };
-      
+
       setMessages(prev => [...prev, errorResponse]);
     } finally {
       setIsTyping(false);
@@ -334,18 +345,26 @@ export default function BookChat({ book, onBack }) {
   const renderPageLines = () => {
     const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines for performance
     const lines = [];
-    
+
     for (let i = 0; i < maxLines; i++) {
-      const isCurrentPage = Math.round((i / maxLines) * currentBook.totalPages) + 1 === currentBook.currentPage;
+      const isCurrentPage =
+        Math.round((i / maxLines) * currentBook.totalPages) + 1 ===
+        currentBook.currentPage;
       const isDragged = draggedLineIndex === i;
-      const isCompleted = Math.round((i / maxLines) * currentBook.totalPages) + 1 < currentBook.currentPage;
-      
+      const isCompleted =
+        Math.round((i / maxLines) * currentBook.totalPages) + 1 <
+        currentBook.currentPage;
+
       // All lines have the same height - no bell curve variation (20% bigger)
       const baseHeight = 19.2; // 16 * 1.2 (20% increase)
-      
+
       // Slightly taller if being dragged or is current page
-      const finalHeight = isDragged ? baseHeight * 1.5 : (isCurrentPage ? baseHeight * 1.25 : baseHeight);
-      
+      const finalHeight = isDragged
+        ? baseHeight * 1.5
+        : isCurrentPage
+          ? baseHeight * 1.25
+          : baseHeight;
+
       lines.push(
         <View
           key={i}
@@ -353,49 +372,53 @@ export default function BookChat({ book, onBack }) {
             styles.pageLine,
             {
               height: finalHeight,
-              backgroundColor: isCompleted 
-                ? theme.colors.blue 
-                : isCurrentPage 
-                  ? theme.colors.blueMuted 
+              backgroundColor: isCompleted
+                ? theme.colors.blue
+                : isCurrentPage
+                  ? theme.colors.blueMuted
                   : theme.colors.surfaceElevated,
-              borderColor: isCurrentPage ? theme.colors.blue : theme.colors.borderSubtle,
-              transform: [{ scaleY: isDragged ? 1.2 : 1 }]
-            }
+              borderColor: isCurrentPage
+                ? theme.colors.blue
+                : theme.colors.borderSubtle,
+              transform: [{ scaleY: isDragged ? 1.2 : 1 }],
+            },
           ]}
         />
       );
     }
-    
+
     return lines;
   };
 
-  const renderMessage = (message) => (
+  const renderMessage = message => (
     <View
       key={message.id}
       style={[
         styles.messageContainer,
-        message.isUser ? styles.userMessage : styles.aiMessage
+        message.isUser ? styles.userMessage : styles.aiMessage,
       ]}
     >
       <View
         style={[
           styles.messageBubble,
-          message.isUser ? styles.userBubble : styles.aiBubble
+          message.isUser ? styles.userBubble : styles.aiBubble,
         ]}
       >
         {!message.isUser && (
           <View style={styles.aiLogoContainer}>
-            <Image 
-              source={require('../../assets/duckbill.png')} 
+            <Image
+              source={require('../../assets/duckbill.png')}
               style={styles.aiLogo}
-              resizeMode="contain"
+              resizeMode='contain'
             />
           </View>
         )}
-        <Text style={[
-          styles.messageText,
-          message.isUser ? styles.userText : styles.aiText
-        ]}>
+        <Text
+          style={[
+            styles.messageText,
+            message.isUser ? styles.userText : styles.aiText,
+          ]}
+        >
           {message.text}
         </Text>
       </View>
@@ -403,25 +426,31 @@ export default function BookChat({ book, onBack }) {
   );
 
   return (
-    <Animated.View style={[styles.container, { 
-      backgroundColor: theme.colors.surface,
-      opacity: pageFadeAnim
-    }]}>
-      <KeyboardAvoidingView 
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.surface,
+          opacity: pageFadeAnim,
+        },
+      ]}
+    >
+      <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header Section with Back Button */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <TouchableOpacity style={styles.backButtonModal} onPress={handleBack}>
+            <TouchableOpacity
+              style={styles.backButtonModal}
+              onPress={handleBack}
+            >
               <Text style={styles.backButtonText}>← Library</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.headerTitleContainer}>
-          </View>
-          <View style={styles.headerRight}>
-          </View>
+          <View style={styles.headerTitleContainer}></View>
+          <View style={styles.headerRight}></View>
         </View>
 
         {/* Main Content Area */}
@@ -432,14 +461,16 @@ export default function BookChat({ book, onBack }) {
             <View style={styles.bookCoverContainer}>
               <SimpleBookImage book={currentBook} />
             </View>
-            
+
             {/* Book Info Section */}
             <View style={styles.bookInfoContainer}>
               <View style={styles.infoContent}>
                 <View style={styles.infoRow}>
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Author</Text>
-                    <Text style={styles.infoValue} numberOfLines={2}>{currentBook.author || 'Unknown'}</Text>
+                    <Text style={styles.infoValue} numberOfLines={2}>
+                      {currentBook.author || 'Unknown'}
+                    </Text>
                   </View>
                 </View>
 
@@ -448,7 +479,9 @@ export default function BookChat({ book, onBack }) {
                 <View style={styles.infoRow}>
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Published</Text>
-                    <Text style={styles.infoValue}>{currentBook.publishedDate || 'Unknown'}</Text>
+                    <Text style={styles.infoValue}>
+                      {currentBook.publishedDate || 'Unknown'}
+                    </Text>
                   </View>
                 </View>
 
@@ -457,21 +490,26 @@ export default function BookChat({ book, onBack }) {
                 <View style={styles.infoRow}>
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Pages</Text>
-                    <Text style={styles.infoValue}>{currentBook.totalPages || 'Unknown'}</Text>
+                    <Text style={styles.infoValue}>
+                      {currentBook.totalPages || 'Unknown'}
+                    </Text>
                   </View>
                 </View>
 
-                {currentBook.categories && currentBook.categories.length > 0 && (
-                  <>
-                    <View style={styles.infoDivider} />
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoLabel}>Genre</Text>
-                        <Text style={styles.infoValue} numberOfLines={2}>{currentBook.categories[0]}</Text>
+                {currentBook.categories &&
+                  currentBook.categories.length > 0 && (
+                    <>
+                      <View style={styles.infoDivider} />
+                      <View style={styles.infoRow}>
+                        <View style={styles.infoTextContainer}>
+                          <Text style={styles.infoLabel}>Genre</Text>
+                          <Text style={styles.infoValue} numberOfLines={2}>
+                            {currentBook.categories[0]}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  </>
-                )}
+                    </>
+                  )}
 
                 {currentBook.publisher && (
                   <>
@@ -479,7 +517,9 @@ export default function BookChat({ book, onBack }) {
                     <View style={styles.infoRow}>
                       <View style={styles.infoTextContainer}>
                         <Text style={styles.infoLabel}>Publisher</Text>
-                        <Text style={styles.infoValue} numberOfLines={2}>{currentBook.publisher}</Text>
+                        <Text style={styles.infoValue} numberOfLines={2}>
+                          {currentBook.publisher}
+                        </Text>
                       </View>
                     </View>
                   </>
@@ -491,7 +531,9 @@ export default function BookChat({ book, onBack }) {
                     <View style={styles.infoRow}>
                       <View style={styles.infoTextContainer}>
                         <Text style={styles.infoLabel}>ISBN</Text>
-                        <Text style={styles.infoValue} numberOfLines={1}>{currentBook.isbn}</Text>
+                        <Text style={styles.infoValue} numberOfLines={1}>
+                          {currentBook.isbn}
+                        </Text>
                       </View>
                     </View>
                   </>
@@ -501,7 +543,9 @@ export default function BookChat({ book, onBack }) {
                 <View style={styles.infoRow}>
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Language</Text>
-                    <Text style={styles.infoValue}>{currentBook.language || 'English'}</Text>
+                    <Text style={styles.infoValue}>
+                      {currentBook.language || 'English'}
+                    </Text>
                   </View>
                 </View>
 
@@ -509,7 +553,11 @@ export default function BookChat({ book, onBack }) {
                 <View style={styles.infoRow}>
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Reading Time</Text>
-                    <Text style={styles.infoValue}>{currentBook.totalPages ? Math.ceil(currentBook.totalPages / 2) + ' min' : 'Unknown'}</Text>
+                    <Text style={styles.infoValue}>
+                      {currentBook.totalPages
+                        ? Math.ceil(currentBook.totalPages / 2) + ' min'
+                        : 'Unknown'}
+                    </Text>
                   </View>
                 </View>
 
@@ -517,7 +565,9 @@ export default function BookChat({ book, onBack }) {
                 <View style={styles.infoRow}>
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Progress</Text>
-                    <Text style={styles.infoValue}>{currentBook.progress || 0}% Complete</Text>
+                    <Text style={styles.infoValue}>
+                      {currentBook.progress || 0}% Complete
+                    </Text>
                   </View>
                 </View>
 
@@ -527,7 +577,9 @@ export default function BookChat({ book, onBack }) {
                     <View style={styles.infoRow}>
                       <View style={styles.infoTextContainer}>
                         <Text style={styles.infoLabel}>Description</Text>
-                        <Text style={styles.infoValue} numberOfLines={3}>{currentBook.description}</Text>
+                        <Text style={styles.infoValue} numberOfLines={3}>
+                          {currentBook.description}
+                        </Text>
                       </View>
                     </View>
                   </>
@@ -539,75 +591,116 @@ export default function BookChat({ book, onBack }) {
                     <View style={styles.infoRow}>
                       <View style={styles.infoTextContainer}>
                         <Text style={styles.infoLabel}>Rating</Text>
-                        <Text style={styles.infoValue}>{currentBook.averageRating}/5 ⭐</Text>
+                        <Text style={styles.infoValue}>
+                          {currentBook.averageRating}/5 ⭐
+                        </Text>
                       </View>
                     </View>
                   </>
                 )}
 
-                {currentBook.pageCount && currentBook.pageCount !== currentBook.totalPages && (
-                  <>
-                    <View style={styles.infoDivider} />
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoLabel}>Page Count</Text>
-                        <Text style={styles.infoValue}>{currentBook.pageCount}</Text>
+                {currentBook.pageCount &&
+                  currentBook.pageCount !== currentBook.totalPages && (
+                    <>
+                      <View style={styles.infoDivider} />
+                      <View style={styles.infoRow}>
+                        <View style={styles.infoTextContainer}>
+                          <Text style={styles.infoLabel}>Page Count</Text>
+                          <Text style={styles.infoValue}>
+                            {currentBook.pageCount}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                  </>
-                )}
+                    </>
+                  )}
               </View>
             </View>
           </View>
 
           {/* Right Column: Header and Chatbox */}
           <View style={styles.rightColumn}>
-            {/* Right Column Header with Book Title, Author, and Page Navigation */}
+            {/* Right Column Header with Progress Bar, Book Title, and Author */}
             <View style={styles.rightColumnHeader}>
-              <View style={styles.bookTitleAuthorContainer}>
-                <Text style={styles.rightColumnBookTitle}>{currentBook.title}</Text>
-                <Text style={styles.rightColumnAuthor}>{currentBook.author || 'Unknown'}</Text>
-              </View>
-              
-              <View style={styles.pageScrollContainer}>
-                <TouchableOpacity 
-                  style={[styles.progressArrow, currentBook.currentPage <= 1 && styles.progressArrowDisabled]}
-                  onPress={() => handlePageChange(-1)}
-                  disabled={currentBook.currentPage <= 1}
-                >
-                  <Text style={[styles.progressArrowText, currentBook.currentPage <= 1 && styles.progressArrowTextDisabled]}>‹</Text>
-                </TouchableOpacity>
-                
-                <View style={styles.pageLinesContainer} {...panResponder.panHandlers}>
-                  {renderPageLines()}
+              {/* Progress Bar Section - Now at the top */}
+              <View style={styles.progressSection}>
+                <View style={styles.pageScrollContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.progressArrow,
+                      currentBook.currentPage <= 1 &&
+                        styles.progressArrowDisabled,
+                    ]}
+                    onPress={() => handlePageChange(-1)}
+                    disabled={currentBook.currentPage <= 1}
+                  >
+                    <Text
+                      style={[
+                        styles.progressArrowText,
+                        currentBook.currentPage <= 1 &&
+                          styles.progressArrowTextDisabled,
+                      ]}
+                    >
+                      ‹
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View
+                    style={styles.pageLinesContainer}
+                    {...panResponder.panHandlers}
+                  >
+                    {renderPageLines()}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.progressArrow,
+                      currentBook.currentPage >= currentBook.totalPages &&
+                        styles.progressArrowDisabled,
+                    ]}
+                    onPress={() => handlePageChange(1)}
+                    disabled={currentBook.currentPage >= currentBook.totalPages}
+                  >
+                    <Text
+                      style={[
+                        styles.progressArrowText,
+                        currentBook.currentPage >= currentBook.totalPages &&
+                          styles.progressArrowTextDisabled,
+                      ]}
+                    >
+                      ›
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                
-                <TouchableOpacity 
-                  style={[styles.progressArrow, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowDisabled]}
-                  onPress={() => handlePageChange(1)}
-                  disabled={currentBook.currentPage >= currentBook.totalPages}
-                >
-                  <Text style={[styles.progressArrowText, currentBook.currentPage >= currentBook.totalPages && styles.progressArrowTextDisabled]}>›</Text>
-                </TouchableOpacity>
+
+                {/* Page Number Display - Positioned under the progress bar */}
+                <View style={styles.pageNumberContainer}>
+                  <Text style={styles.pageNumberText}>
+                    {currentBook.currentPage} / {currentBook.totalPages}
+                  </Text>
+                </View>
               </View>
-              
-              {/* Page Number Display */}
-              <View style={styles.pageNumberContainer}>
-                <Text style={styles.pageNumberText}>
-                  {currentBook.currentPage} / {currentBook.totalPages}
-                </Text>
-              </View>
-              
-              <View style={styles.directoryIconContainer}>
-                <TouchableOpacity style={styles.directoryIcon}>
-                  <Text style={styles.directoryIconText}>☰</Text>
-                </TouchableOpacity>
+
+              {/* Book Title and Author Section - Now below progress bar */}
+              <View style={styles.headerTopRow}>
+                <View style={styles.bookTitleAuthorContainer}>
+                  <Text style={styles.rightColumnBookTitle}>
+                    {currentBook.title}
+                  </Text>
+                  <Text style={styles.rightColumnAuthor}>
+                    {currentBook.author || 'Unknown'}
+                  </Text>
+                </View>
+
+                <View style={styles.directoryIconContainer}>
+                  <TouchableOpacity style={styles.directoryIcon}>
+                    <Text style={styles.directoryIconText}>☰</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
             {/* Main Chat Area */}
             <View style={styles.chatContainer}>
-
               <ScrollView
                 ref={scrollViewRef}
                 style={styles.messagesContainer}
@@ -615,55 +708,80 @@ export default function BookChat({ book, onBack }) {
                 showsVerticalScrollIndicator={false}
               >
                 {messages.map(renderMessage)}
-                
+
                 {isTyping && (
                   <View style={[styles.messageContainer, styles.aiMessage]}>
                     <View style={[styles.messageBubble, styles.aiBubble]}>
-                      <Animated.View style={[styles.aiLogoContainer, {
-                        transform: [{ scale: logoPulseAnim }]
-                      }]}>
-                        <Image 
-                          source={require('../../assets/duckbill.png')} 
+                      <Animated.View
+                        style={[
+                          styles.aiLogoContainer,
+                          {
+                            transform: [{ scale: logoPulseAnim }],
+                          },
+                        ]}
+                      >
+                        <Image
+                          source={require('../../assets/duckbill.png')}
                           style={styles.aiLogo}
-                          resizeMode="contain"
+                          resizeMode='contain'
                         />
                       </Animated.View>
                       <View style={styles.typingContainer}>
-                        <Text style={styles.typingText}>Waddle is thinking</Text>
+                        <Text style={styles.typingText}>
+                          Waddle is thinking
+                        </Text>
                         <View style={styles.dotsContainer}>
-                          <Animated.View style={[styles.thinkingDot, {
-                            opacity: dotsAnim1,
-                            transform: [{ scale: dotsAnim1 }]
-                          }]} />
-                          <Animated.View style={[styles.thinkingDot, {
-                            opacity: dotsAnim2,
-                            transform: [{ scale: dotsAnim2 }]
-                          }]} />
-                          <Animated.View style={[styles.thinkingDot, {
-                            opacity: dotsAnim3,
-                            transform: [{ scale: dotsAnim3 }]
-                          }]} />
+                          <Animated.View
+                            style={[
+                              styles.thinkingDot,
+                              {
+                                opacity: dotsAnim1,
+                                transform: [{ scale: dotsAnim1 }],
+                              },
+                            ]}
+                          />
+                          <Animated.View
+                            style={[
+                              styles.thinkingDot,
+                              {
+                                opacity: dotsAnim2,
+                                transform: [{ scale: dotsAnim2 }],
+                              },
+                            ]}
+                          />
+                          <Animated.View
+                            style={[
+                              styles.thinkingDot,
+                              {
+                                opacity: dotsAnim3,
+                                transform: [{ scale: dotsAnim3 }],
+                              },
+                            ]}
+                          />
                         </View>
                       </View>
                     </View>
                   </View>
                 )}
               </ScrollView>
-              
+
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.textInput}
                   value={inputText}
                   onChangeText={setInputText}
-                  placeholder="Ask about themes, characters, plot..."
-                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  placeholder='Ask about themes, characters, plot...'
+                  placeholderTextColor='rgba(255, 255, 255, 0.6)'
                   maxLength={500}
                   onSubmitEditing={handleSendMessage}
                   blurOnSubmit={false}
-                  returnKeyType="send"
+                  returnKeyType='send'
                 />
                 <TouchableOpacity
-                  style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+                  style={[
+                    styles.sendButton,
+                    !inputText.trim() && styles.sendButtonDisabled,
+                  ]}
                   onPress={handleSendMessage}
                   disabled={!inputText.trim() || isTyping}
                 >
@@ -675,9 +793,8 @@ export default function BookChat({ book, onBack }) {
         </View>
       </KeyboardAvoidingView>
 
-
       {/* Floating Delete Button - Bottom Left Panel */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.floatingDeleteButton}
         onPress={handleDeleteBook}
         activeOpacity={0.7}
@@ -768,13 +885,15 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   progressSection: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    marginBottom: 12,
   },
   mainContent: {
     flex: 1,
     flexDirection: 'row',
+    paddingTop: 0,
   },
   // Left Column Styles
   leftColumn: {
@@ -859,14 +978,17 @@ const styles = StyleSheet.create({
   rightColumn: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   rightColumnHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 4,
     paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
   bookTitleAuthorContainer: {
@@ -888,11 +1010,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flex: 1,
     justifyContent: 'center',
+    marginBottom: 8,
   },
   directoryIconContainer: {
-    flex: 1,
     alignItems: 'flex-end',
   },
   progressContainer: {
@@ -950,7 +1071,6 @@ const styles = StyleSheet.create({
   },
   pageNumberContainer: {
     alignItems: 'center',
-    marginTop: 8,
   },
   pageNumberText: {
     color: theme.colors.textMuted,

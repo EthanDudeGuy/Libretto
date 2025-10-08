@@ -9,9 +9,8 @@ export const calculateProgress = (currentPage, totalPages) => {
   return Math.round((currentPage / totalPages) * 100);
 };
 
-
 // Save books to storage
-export const saveBooks = async (books) => {
+export const saveBooks = async books => {
   try {
     const jsonValue = JSON.stringify(books);
     if (Platform.OS === 'web') {
@@ -41,14 +40,16 @@ export const loadBooks = async () => {
 };
 
 // Add a new book to storage
-export const addBook = async (newBook) => {
+export const addBook = async newBook => {
   try {
     const existingBooks = await loadBooks();
     const bookWithId = {
       ...newBook,
       id: Date.now().toString(), // Simple ID generation
       // Progress is already calculated in the modal, but ensure it's valid
-      progress: newBook.progress || Math.round((newBook.currentPage / newBook.totalPages) * 100)
+      progress:
+        newBook.progress ||
+        Math.round((newBook.currentPage / newBook.totalPages) * 100),
     };
     const updatedBooks = [bookWithId, ...existingBooks]; // Add new book to the beginning for top-left positioning
     await saveBooks(updatedBooks);
@@ -66,12 +67,14 @@ export const updateBook = async (bookId, updates) => {
     const updatedBooks = existingBooks.map(book => {
       if (book.id === bookId) {
         const updatedBook = { ...book, ...updates };
-        
+
         // Recalculate progress if currentPage was updated
         if (updates.currentPage !== undefined) {
-          updatedBook.progress = Math.round((updates.currentPage / book.totalPages) * 100);
+          updatedBook.progress = Math.round(
+            (updates.currentPage / book.totalPages) * 100
+          );
         }
-        
+
         return updatedBook;
       }
       return book;
@@ -85,7 +88,7 @@ export const updateBook = async (bookId, updates) => {
 };
 
 // Delete a book from storage
-export const deleteBook = async (bookId) => {
+export const deleteBook = async bookId => {
   try {
     const existingBooks = await loadBooks();
     const updatedBooks = existingBooks.filter(book => book.id !== bookId);

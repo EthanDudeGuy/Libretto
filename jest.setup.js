@@ -14,10 +14,6 @@ jest.mock('expo-linear-gradient', () => ({
   LinearGradient: 'LinearGradient',
 }));
 
-jest.mock('expo-blur', () => ({
-  BlurView: 'BlurView',
-}));
-
 // Mock React Native modules
 jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper');
 

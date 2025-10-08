@@ -11,7 +11,7 @@ import {
   ScrollView,
   Image,
   ImageBackground,
-  Dimensions
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -40,98 +40,118 @@ export default function LoginScreen({ onNavigateToRegister }) {
     }
   };
 
-
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ImageBackground
         source={require('../../assets/loginwallpaper.png')}
         style={styles.backgroundImage}
-        resizeMode="cover"
+        resizeMode='cover'
       >
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           {/* Dark overlay for better text readability */}
           <View style={styles.overlay} />
 
-        {/* Glass Card */}
-        <View style={styles.glassCard}>
-          <View style={styles.blurContainer}>
-            <LinearGradient
-              colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.08)']}
-              style={styles.glassGradient}
-            >
-              {/* Logo */}
-              <View style={styles.logoContainer}>
-                <Image 
-                  source={require('../../assets/logo.png')} 
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
-              </View>
+          {/* Glass Card */}
+          <View style={styles.glassCard}>
+            <View style={styles.blurContainer}>
+              <LinearGradient
+                colors={[
+                  'rgba(255, 255, 255, 0.15)',
+                  'rgba(255, 255, 255, 0.08)',
+                ]}
+                style={styles.glassGradient}
+              >
+                {/* Logo */}
+                <View style={styles.logoContainer}>
+                  <Image
+                    source={require('../../assets/logo.png')}
+                    style={styles.logo}
+                    resizeMode='contain'
+                  />
+                </View>
 
-              {/* Welcome Text */}
-              <Text style={styles.welcomeTitle}>Welcome,</Text>
-              <Text style={styles.welcomeSubtitle}>Login to Libretto</Text>
+                {/* Welcome Text */}
+                <Text style={styles.welcomeTitle}>Welcome,</Text>
+                <Text style={styles.welcomeSubtitle}>Login to Libretto</Text>
 
-              {/* Email Input */}
-              <View style={styles.emailContainer}>
-                <Text style={styles.emailLabel}>Email</Text>
-                <View style={styles.emailInputRow}>
-                  <View style={styles.emailInputBlur}>
-                    <TextInput
-                      style={styles.emailInput}
-                      value={email}
-                      onChangeText={setEmail}
-                      placeholder="Enter your email"
-                      placeholderTextColor="rgba(255, 255, 255, 0.44)"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
+                {/* Email Input */}
+                <View style={styles.emailContainer}>
+                  <Text style={styles.emailLabel}>Email</Text>
+                  <View style={styles.emailInputRow}>
+                    <View style={styles.emailInputBlur}>
+                      <TextInput
+                        style={styles.emailInput}
+                        value={email}
+                        onChangeText={setEmail}
+                        placeholder='Enter your email'
+                        placeholderTextColor='rgba(255, 255, 255, 0.44)'
+                        keyboardType='email-address'
+                        autoCapitalize='none'
+                        autoCorrect={false}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      style={styles.arrowButton}
+                      onPress={handleLogin}
+                      disabled={isLoading}
+                    >
+                      <Text style={styles.arrowIcon}>→</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity 
-                    style={styles.arrowButton}
-                    onPress={handleLogin}
-                    disabled={isLoading}
+                </View>
+
+                {/* Remember Me */}
+                <View style={styles.rememberMeContainer}>
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => setRememberMe(!rememberMe)}
                   >
-                    <Text style={styles.arrowIcon}>→</Text>
+                    <View
+                      style={[
+                        styles.checkbox,
+                        rememberMe && styles.checkboxChecked,
+                      ]}
+                    >
+                      {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={styles.rememberMeText}>Remember me</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
 
-              {/* Remember Me */}
-              <View style={styles.rememberMeContainer}>
-                <TouchableOpacity 
-                  style={styles.checkboxContainer}
-                  onPress={() => setRememberMe(!rememberMe)}
-                >
-                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                    {rememberMe && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                  <Text style={styles.rememberMeText}>Remember me</Text>
-                </TouchableOpacity>
-              </View>
+                {/* Demo Info */}
+                <View style={styles.demoInfo}>
+                  <Text style={styles.demoTitle}>Demo Account</Text>
+                  <Text style={styles.demoText}>Email: demo@libretto.com</Text>
+                  <Text style={styles.demoText}>Password: demo123</Text>
+                  <Text style={styles.demoNote}>
+                    Click the arrow button to login
+                  </Text>
+                </View>
 
-              {/* Demo Info */}
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoTitle}>Demo Account</Text>
-                <Text style={styles.demoText}>Email: demo@libretto.com</Text>
-                <Text style={styles.demoText}>Password: demo123</Text>
-                <Text style={styles.demoNote}>Click the arrow button to login</Text>
-              </View>
+                {/* Footer */}
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>Don't have an account? </Text>
+                  <TouchableOpacity onPress={onNavigateToRegister}>
+                    <Text style={styles.createAccountLink}>Sign up</Text>
+                  </TouchableOpacity>
+                </View>
 
-              {/* Footer */}
-              <View style={styles.footer}>
-                <Text style={styles.footerText}>Don't have an account? </Text>
-                <TouchableOpacity onPress={onNavigateToRegister}>
-                  <Text style={styles.createAccountLink}>Sign up</Text>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
+                {/* Terms and Privacy Links */}
+                <View style={styles.legalLinks}>
+                  <TouchableOpacity onPress={() => {/* Handle Terms of Service */}}>
+                    <Text style={styles.legalLink}>Terms of Service</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.legalSeparator}> • </Text>
+                  <TouchableOpacity onPress={() => {/* Handle Privacy Policy */}}>
+                    <Text style={styles.legalLink}>Privacy Policy</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
           </View>
-        </View>
         </ScrollView>
       </ImageBackground>
     </KeyboardAvoidingView>
@@ -349,5 +369,23 @@ const styles = StyleSheet.create({
     color: theme.colors.blue,
     fontWeight: '600',
     fontFamily: theme.typography.fontFamilySemibold,
+  },
+  // Legal Links
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: theme.spacing.x2,
+  },
+  legalLink: {
+    fontSize: theme.typography.xs,
+    color: theme.colors.blue,
+    fontFamily: theme.typography.fontFamily,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    fontSize: theme.typography.xs,
+    color: theme.colors.textMuted,
+    fontFamily: theme.typography.fontFamily,
   },
 });

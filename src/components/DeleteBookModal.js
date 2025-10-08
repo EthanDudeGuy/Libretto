@@ -1,5 +1,13 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  Animated,
+  Image,
+} from 'react-native';
 import theme from '../constants/theme';
 
 export default function DeleteBookModal({ visible, onClose, onConfirm, book }) {
@@ -50,17 +58,19 @@ export default function DeleteBookModal({ visible, onClose, onConfirm, book }) {
     <Modal
       visible={visible}
       transparent={true}
-      animationType="none"
+      animationType='none'
       onRequestClose={handleCancel}
     >
       <View style={styles.overlay}>
-        <Animated.View style={[
-          styles.modal,
-          { 
-            opacity: fadeAnim, 
-            transform: [{ scale: scaleAnim }] 
-          }
-        ]}>
+        <Animated.View
+          style={[
+            styles.modal,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
           {/* Warning Icon */}
           <View style={styles.iconContainer}>
             <Text style={styles.warningIcon}>⚠️</Text>
@@ -72,7 +82,10 @@ export default function DeleteBookModal({ visible, onClose, onConfirm, book }) {
           {/* Book Info */}
           <View style={styles.bookInfo}>
             {book?.thumbnail && (
-              <Image source={{ uri: book.thumbnail }} style={styles.bookThumbnail} />
+              <Image
+                source={{ uri: book.thumbnail }}
+                style={styles.bookThumbnail}
+              />
             )}
             <View style={styles.bookDetails}>
               <Text style={styles.bookTitle} numberOfLines={2}>
@@ -86,21 +99,22 @@ export default function DeleteBookModal({ visible, onClose, onConfirm, book }) {
 
           {/* Warning Message */}
           <Text style={styles.message}>
-            Are you sure you want to remove this book from your library? This action cannot be undone.
+            Are you sure you want to remove this book from your library? This
+            action cannot be undone.
           </Text>
 
           {/* Buttons */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={styles.cancelButton} 
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={handleCancel}
               activeOpacity={0.8}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.deleteButton} 
+
+            <TouchableOpacity
+              style={styles.deleteButton}
               onPress={handleConfirm}
               activeOpacity={0.8}
             >

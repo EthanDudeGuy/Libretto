@@ -1,6 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+} from 'react-native';
 import theme from '../constants/theme';
 
 export default function BookCard({ book, onUpdateBookmark, onChat }) {
@@ -37,17 +43,15 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
     if (onChat) onChat(book);
   };
 
-
-
   return (
-    <Animated.View style={[
-      styles.cardContainer, 
-      { 
-        transform: [
-          { scale: scaleAnim }
-        ] 
-      }
-    ]}>
+    <Animated.View
+      style={[
+        styles.cardContainer,
+        {
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
       <TouchableOpacity
         onPress={handleChat}
         onPressIn={handlePressIn}
@@ -57,31 +61,31 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
         activeOpacity={0.8}
       >
         <View style={styles.card}>
-
           {/* Content area with padding */}
           <View style={styles.contentArea}>
             {/* Book cover */}
             <View style={styles.coverContainer}>
               {book.thumbnail ? (
-                <Image 
-                  source={{ uri: book.thumbnail }} 
+                <Image
+                  source={{ uri: book.thumbnail }}
                   style={styles.bookCover}
-                  resizeMode="cover"
+                  resizeMode='cover'
                 />
               ) : (
                 <View style={styles.coverPlaceholder}>
                   <Text style={styles.placeholderText}>📖</Text>
                 </View>
               )}
-              
             </View>
           </View>
 
           {/* Progress bar at bottom - flush with card edges */}
-          <View style={styles.progressSection}>      
+          <View style={styles.progressSection}>
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                <View
+                  style={[styles.progressFill, { width: `${progress}%` }]}
+                />
               </View>
             </View>
           </View>
@@ -185,6 +189,6 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
   },
 });

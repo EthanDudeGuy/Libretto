@@ -3,13 +3,13 @@
 // Features: Glassmorphism effects, rich purple gradients, spoiler-free AI discussions
 
 export const colors = {
-  // Core Glassmorphism Backgrounds
+  // Core Glassmorphism Backgrounds (restored from working theme)
   background: '#0f1419', // dark navy base
   backgroundGradient: ['#1a0b2e', '#16213e', '#0f1419'], // Rich purple gradient
-  surface: 'rgba(255, 255, 255, 0.1)', // Glassmorphism surface
-  surfaceElevated: 'rgba(255, 255, 255, 0.15)', // Elevated glass
+  surface: '#131a21', // Solid surface (was working well)
+  surfaceElevated: '#17202a', // Elevated surface (was working well)
   surfaceMuted: 'rgba(255, 255, 255, 0.05)', // Subtle glass
-  overlay: 'rgba(26, 11, 46, 0.8)', // Purple overlay
+  overlay: 'rgba(2, 6, 12, 0.7)', // Dark overlay (restored from working theme)
 
   // Purple Gradient System
   purple: {
@@ -28,11 +28,11 @@ export const colors = {
     backdrop: 'rgba(255, 255, 255, 0.05)',
   },
 
-  // Text (optimized for glassmorphism)
-  textPrimary: '#ffffff',
-  textSecondary: 'rgba(255, 255, 255, 0.8)',
-  textMuted: 'rgba(255, 255, 255, 0.6)',
-  textInverse: '#1a0b2e',
+  // Text (restored from working theme)
+  textPrimary: '#e6edf3', // Soft white (was working well)
+  textSecondary: '#c9d1d9', // Muted white (was working well)
+  textMuted: 'rgba(201, 209, 217, 0.65)', // Properly muted (was working well)
+  textInverse: '#0f1419',
 
   // Accents (purple-based)
   accent: '#8b5cf6',
@@ -40,10 +40,22 @@ export const colors = {
   accentMuted: 'rgba(139, 92, 246, 0.3)',
   outline: '#8b5cf6',
 
-  // Borders (glassmorphism)
-  borderSubtle: 'rgba(255, 255, 255, 0.1)',
-  borderStrong: 'rgba(255, 255, 255, 0.2)',
+  // Borders (restored from working theme)
+  borderSubtle: 'rgba(230, 237, 243, 0.08)', // Proper subtle border (was working well)
+  borderStrong: 'rgba(230, 237, 243, 0.14)', // Proper strong border (was working well)
   borderGlass: 'rgba(255, 255, 255, 0.15)',
+
+  // Orange Color System (primary accent color)
+  orange: '#fe8a1f', // Primary orange/coral color
+  orangeMuted: 'rgba(254, 138, 31, 0.3)', // Muted orange
+  orangeDark: '#e67e00', // Darker orange
+  orangeLight: '#ff9f40', // Lighter orange
+
+  // Legacy Blue Colors (deprecated - use orange instead)
+  blue: '#fe8a1f', // Same as orange - kept for backward compatibility
+  blueMuted: 'rgba(254, 138, 31, 0.3)', // Same as orangeMuted
+  blueDark: '#e67e00', // Same as orangeDark
+  blueLight: '#ff9f40', // Same as orangeLight
 
   // Semantic (adapted for dark theme)
   success: '#10b981',
@@ -110,7 +122,7 @@ export const components = {
     // Glassmorphism backdrop blur (React Native implementation)
     backdropFilter: 'blur(20px)',
   },
-  
+
   cardElevated: {
     backgroundColor: colors.surfaceElevated,
     borderColor: colors.borderGlass,
@@ -142,7 +154,7 @@ export const components = {
       elevation: 4,
     },
   },
-  
+
   buttonSecondary: {
     backgroundColor: colors.glass.background,
     textColor: colors.textPrimary,
@@ -215,7 +227,7 @@ export const animations = {
     slow: 500,
     verySlow: 800,
   },
-  
+
   // Easing curves
   easing: {
     easeInOut: 'ease-in-out',
@@ -223,39 +235,39 @@ export const animations = {
     easeIn: 'ease-in',
     spring: 'spring',
   },
-  
+
   // Common animations
   fadeIn: {
     opacity: 1,
     duration: 300,
   },
-  
+
   fadeOut: {
     opacity: 0,
     duration: 200,
   },
-  
+
   slideUp: {
     translateY: 0,
     duration: 300,
   },
-  
+
   slideDown: {
     translateY: 20,
     duration: 300,
   },
-  
+
   scale: {
     scale: 1,
     duration: 200,
   },
-  
+
   // Glassmorphism specific animations
   glassHover: {
     backgroundColor: colors.surfaceElevated,
     duration: 200,
   },
-  
+
   glassPress: {
     backgroundColor: colors.surfaceMuted,
     scale: 0.98,
@@ -271,15 +283,13 @@ export const gradients = {
   subtle: ['rgba(139, 92, 246, 0.1)', 'rgba(168, 85, 247, 0.05)'],
 };
 
-const theme = { 
-  colors, 
-  spacing, 
-  radii, 
-  typography, 
-  components, 
-  animations, 
-  gradients 
+const theme = {
+  colors,
+  spacing,
+  radii,
+  typography,
+  components,
+  animations,
+  gradients,
 };
 export default theme;
-
-

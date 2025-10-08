@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, View } from 'react-native';
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import theme from './src/constants/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import LibraryHomepage from './src/screens/LibraryHomepage';
@@ -16,9 +22,16 @@ function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   // Debug logging
-  console.log('AppContent render - isAuthenticated:', isAuthenticated, 'isLoading:', isLoading, 'user:', user);
+  console.log(
+    'AppContent render - isAuthenticated:',
+    isAuthenticated,
+    'isLoading:',
+    isLoading,
+    'user:',
+    user
+  );
 
-  const navigateToChat = (book) => {
+  const navigateToChat = book => {
     setSelectedBook(book);
     setCurrentView('chat');
   };
@@ -39,9 +52,13 @@ function AppContent() {
   // Show loading screen while checking authentication
   if (isLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <StatusBar style="light" />
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: theme.colors.background }}
+      >
+        <View
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <StatusBar style='light' />
         </View>
       </SafeAreaView>
     );
@@ -50,13 +67,15 @@ function AppContent() {
   // Show authentication screens if not authenticated
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: theme.colors.background }}
+      >
         {authView === 'login' ? (
           <LoginScreen onNavigateToRegister={navigateToRegister} />
         ) : (
           <RegisterScreen onNavigateToLogin={navigateToLogin} />
         )}
-        <StatusBar style="light" />
+        <StatusBar style='light' />
       </SafeAreaView>
     );
   }
@@ -69,7 +88,7 @@ function AppContent() {
       ) : (
         <BookChat book={selectedBook} onBack={navigateToHomepage} />
       )}
-      <StatusBar style="light" />
+      <StatusBar style='light' />
     </SafeAreaView>
   );
 }

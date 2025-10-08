@@ -1,16 +1,22 @@
 # Book Collection App - Style Guide
 
 ## Design System Overview
-This style guide recreates the clean, modern aesthetic of the "My Book Collection" interface with a dark theme, geometric sans-serif typography, and a cohesive blue accent system.
+
+This style guide recreates the clean, modern aesthetic of the "My Book Collection" interface with a
+dark theme, geometric sans-serif typography, and a cohesive blue accent system.
 
 ## Typography
 
 ### Font Stack
+
 ```css
---font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+--font-primary:
+  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial,
+  sans-serif;
 ```
 
 ### Font Weights
+
 ```css
 --font-light: 300;
 --font-regular: 400;
@@ -20,70 +26,77 @@ This style guide recreates the clean, modern aesthetic of the "My Book Collectio
 ```
 
 ### Font Sizes
+
 ```css
---text-xs: 0.75rem;    /* 12px */
---text-sm: 0.875rem;   /* 14px */
---text-base: 1rem;     /* 16px */
---text-lg: 1.125rem;   /* 18px */
---text-xl: 1.25rem;    /* 20px */
---text-2xl: 1.5rem;    /* 24px */
---text-3xl: 1.875rem;  /* 30px */
---text-4xl: 2.25rem;   /* 36px */
+--text-xs: 0.75rem; /* 12px */
+--text-sm: 0.875rem; /* 14px */
+--text-base: 1rem; /* 16px */
+--text-lg: 1.125rem; /* 18px */
+--text-xl: 1.25rem; /* 20px */
+--text-2xl: 1.5rem; /* 24px */
+--text-3xl: 1.875rem; /* 30px */
+--text-4xl: 2.25rem; /* 36px */
 ```
 
 ## Color Palette
 
 ### Primary Colors
+
 ```css
---color-primary-bg: #0f1419;           /* Main background */
---color-secondary-bg: #1a1f2e;         /* Secondary background */
---color-card-bg: #232937;              /* Card backgrounds */
---color-accent-blue: #4285f4;          /* Primary blue accent */
---color-accent-blue-hover: #3367d6;    /* Blue hover state */
+--color-primary-bg: #0f1419; /* Main background */
+--color-secondary-bg: #1a1f2e; /* Secondary background */
+--color-card-bg: #232937; /* Card backgrounds */
+--color-accent-blue: #4285f4; /* Primary blue accent */
+--color-accent-blue-hover: #3367d6; /* Blue hover state */
 --color-accent-blue-light: rgba(66, 133, 244, 0.1); /* Blue with opacity */
 ```
 
 ### Text Colors
+
 ```css
---color-text-primary: #ffffff;         /* Primary white text */
---color-text-secondary: #a8b3cf;       /* Secondary gray text */
---color-text-muted: #6b7280;           /* Muted gray text */
---color-text-inverse: #000000;         /* Text on light backgrounds */
+--color-text-primary: #ffffff; /* Primary white text */
+--color-text-secondary: #a8b3cf; /* Secondary gray text */
+--color-text-muted: #6b7280; /* Muted gray text */
+--color-text-inverse: #000000; /* Text on light backgrounds */
 ```
 
 ### Status & Utility Colors
+
 ```css
---color-border: rgba(255, 255, 255, 0.1);  /* Subtle borders */
+--color-border: rgba(255, 255, 255, 0.1); /* Subtle borders */
 --color-border-hover: rgba(255, 255, 255, 0.2); /* Border hover */
---color-success: #10b981;              /* Success/positive actions */
---color-warning: #f59e0b;              /* Warning states */
---color-error: #ef4444;                /* Error/destructive actions */
+--color-success: #10b981; /* Success/positive actions */
+--color-warning: #f59e0b; /* Warning states */
+--color-error: #ef4444; /* Error/destructive actions */
 ```
 
 ## Spacing Scale
+
 ```css
---space-1: 0.25rem;   /* 4px */
---space-2: 0.5rem;    /* 8px */
---space-3: 0.75rem;   /* 12px */
---space-4: 1rem;      /* 16px */
---space-5: 1.25rem;   /* 20px */
---space-6: 1.5rem;    /* 24px */
---space-8: 2rem;      /* 32px */
---space-10: 2.5rem;   /* 40px */
---space-12: 3rem;     /* 48px */
---space-16: 4rem;     /* 64px */
+--space-1: 0.25rem; /* 4px */
+--space-2: 0.5rem; /* 8px */
+--space-3: 0.75rem; /* 12px */
+--space-4: 1rem; /* 16px */
+--space-5: 1.25rem; /* 20px */
+--space-6: 1.5rem; /* 24px */
+--space-8: 2rem; /* 32px */
+--space-10: 2.5rem; /* 40px */
+--space-12: 3rem; /* 48px */
+--space-16: 4rem; /* 64px */
 ```
 
 ## Border Radius
+
 ```css
---radius-sm: 0.375rem;   /* 6px */
---radius-md: 0.5rem;     /* 8px */
---radius-lg: 0.75rem;    /* 12px */
---radius-xl: 1rem;       /* 16px */
---radius-2xl: 1.5rem;    /* 24px */
+--radius-sm: 0.375rem; /* 6px */
+--radius-md: 0.5rem; /* 8px */
+--radius-lg: 0.75rem; /* 12px */
+--radius-xl: 1rem; /* 16px */
+--radius-2xl: 1.5rem; /* 24px */
 ```
 
 ## Shadows
+
 ```css
 --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -94,6 +107,7 @@ This style guide recreates the clean, modern aesthetic of the "My Book Collectio
 ## Component Styles
 
 ### Base Styles
+
 ```css
 body {
   font-family: var(--font-primary);
@@ -105,6 +119,7 @@ body {
 ```
 
 ### Cards
+
 ```css
 .card {
   background-color: var(--color-card-bg);
@@ -120,6 +135,7 @@ body {
 ```
 
 ### Buttons
+
 ```css
 .btn-primary {
   background-color: var(--color-accent-blue);
@@ -154,6 +170,7 @@ body {
 ```
 
 ### Typography Classes
+
 ```css
 .heading-1 {
   font-size: var(--text-4xl);
@@ -185,6 +202,7 @@ body {
 ```
 
 ### Genre Tags
+
 ```css
 .genre-tag {
   background-color: var(--color-accent-blue);
@@ -210,19 +228,23 @@ When working with Cursor, use this prompt:
 5. **Spacing**: Consistent 8px grid system for all spacing
 6. **Hover States**: Subtle transitions and border color changes
 
-**Apply these CSS variables throughout the app and maintain consistency with the component styles defined above. Focus on creating a clean, modern interface that matches the reference design.**"
+**Apply these CSS variables throughout the app and maintain consistency with the component styles
+defined above. Focus on creating a clean, modern interface that matches the reference design.**"
 
 ## CSS Variables Import
+
 ```css
 :root {
   /* Typography */
-  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-primary:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial,
+    sans-serif;
   --font-light: 300;
   --font-regular: 400;
   --font-medium: 500;
   --font-semibold: 600;
   --font-bold: 700;
-  
+
   /* Font Sizes */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -232,7 +254,7 @@ When working with Cursor, use this prompt:
   --text-2xl: 1.5rem;
   --text-3xl: 1.875rem;
   --text-4xl: 2.25rem;
-  
+
   /* Colors */
   --color-primary-bg: #0f1419;
   --color-secondary-bg: #1a1f2e;
@@ -244,7 +266,7 @@ When working with Cursor, use this prompt:
   --color-text-muted: #6b7280;
   --color-border: rgba(255, 255, 255, 0.1);
   --color-border-hover: rgba(255, 255, 255, 0.2);
-  
+
   /* Spacing */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -256,7 +278,7 @@ When working with Cursor, use this prompt:
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
-  
+
   /* Border Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
