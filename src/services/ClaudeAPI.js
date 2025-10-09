@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import {
   handleAPIError,
   handleClaudeResponse,
@@ -5,7 +6,10 @@ import {
 } from '../utils/ErrorHandler';
 
 // Backend API endpoints (no more direct Claude API calls)
-const BACKEND_BASE_URL = 'http://localhost:8000';
+// Use different URLs based on platform for React Native compatibility
+const BACKEND_BASE_URL = Platform.OS === 'ios' 
+  ? 'http://127.0.0.1:8001'  // iOS Simulator
+  : 'http://10.0.2.2:8001';  // Android Emulator
 const CHAT_ENDPOINT = `${BACKEND_BASE_URL}/api/chat`;
 const SUMMARY_ENDPOINT = `${BACKEND_BASE_URL}/api/summary`;
 const SAVE_SESSION_ENDPOINT = `${BACKEND_BASE_URL}/api/save-session`;

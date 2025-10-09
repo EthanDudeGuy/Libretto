@@ -84,7 +84,7 @@ export default function BookCard({ book, onUpdateBookmark, onChat }) {
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
                 <View
-                  style={[styles.progressFill, { width: `${progress}%` }]}
+                  style={[styles.progressFill, { width: `${String(progress || 0)}%` }]}
                 />
               </View>
             </View>
@@ -107,13 +107,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     backgroundColor: theme.colors.surface,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.35)',
     elevation: 6,
     position: 'relative',
     overflow: 'hidden',

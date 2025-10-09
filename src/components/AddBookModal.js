@@ -283,24 +283,24 @@ export default function AddBookModal({
                             {item.author}
                           </Text>
                           <View style={styles.resultDetails}>
-                            {item.pageCount > 0 && (
+                            {item.pageCount > 0 ? (
                               <Text style={styles.searchResultPages}>
-                                {item.pageCount} pages
+                                {String(item.pageCount)} pages
                               </Text>
-                            )}
-                            {item.publishedDate && (
+                            ) : null}
+                            {item.publishedDate ? (
                               <Text style={styles.searchResultYear}>
                                 {item.publishedDate.split('-')[0]}
                               </Text>
-                            )}
-                            {item.publisher && (
+                            ) : null}
+                            {item.publisher ? (
                               <Text
                                 style={styles.searchResultPublisher}
                                 numberOfLines={1}
                               >
                                 {item.publisher}
                               </Text>
-                            )}
+                            ) : null}
                           </View>
                         </View>
                       </View>
@@ -329,11 +329,11 @@ export default function AddBookModal({
                     <Text style={styles.selectedBookAuthor}>
                       by {selectedGoogleBook.author}
                     </Text>
-                    {selectedGoogleBook.pageCount && (
+                    {selectedGoogleBook.pageCount ? (
                       <Text style={styles.selectedBookPages}>
-                        {selectedGoogleBook.pageCount} pages
+                        {String(selectedGoogleBook.pageCount)} pages
                       </Text>
-                    )}
+                    ) : null}
                   </View>
                 </View>
               </View>

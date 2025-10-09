@@ -157,10 +157,7 @@ export const AuthProvider = ({ children }) => {
       // Clear user state
       setUser(null);
 
-      // Force a state update by setting loading briefly
-      setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      setIsLoading(false);
+      // Clear user state without unnecessary loading state changes
     } catch (error) {
       console.error('Error during logout:', error);
       // Even if there's an error, try to clear the state
@@ -181,6 +178,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const getAIPersonality = async () => {
+    try {
+      const personality = await AsyncStorage.getItem('ai_personality');
+      return personality || 'kind_queen'; // Default to kind queen
+    } catch (error) {
+      console.error('Error getting AI personality:', error);
+      return 'kind_queen';
+    }
+  };
+
+  const setAIPersonality = async (personality) => {
+    try {
+      await AsyncStorage.setItem('ai_personality', personality);
+    } catch (error) {
+      console.error('Error setting AI personality:', error);
+    }
+  };
+
   const value = {
     user,
     isLoading,
@@ -188,6 +203,8 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     forceLogout,
+    getAIPersonality,
+    setAIPersonality,
     isAuthenticated: !!user,
   };
 

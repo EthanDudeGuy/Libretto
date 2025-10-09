@@ -28,6 +28,8 @@ export default function BookChat({ book, onBack }) {
   const [draggedLineIndex, setDraggedLineIndex] = useState(null);
   const [currentBook, setCurrentBook] = useState(book);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isWelcomeTyping, setIsWelcomeTyping] = useState(false);
+  const [welcomeMessageText, setWelcomeMessageText] = useState('');
   const scrollViewRef = useRef();
   const { user } = useAuth();
 
@@ -37,17 +39,97 @@ export default function BookChat({ book, onBack }) {
   const dotsAnim1 = useRef(new Animated.Value(0)).current;
   const dotsAnim2 = useRef(new Animated.Value(0)).current;
   const dotsAnim3 = useRef(new Animated.Value(0)).current;
+  const cursorBlinkAnim = useRef(new Animated.Value(1)).current;
 
-  // Dynamic summary generator using Google Books data
+  // Custom hook for typing animation
+  const useTypingAnimation = (text, speed = 30) => {
+    const [displayedText, setDisplayedText] = useState('');
+    const [isComplete, setIsComplete] = useState(false);
+
+    useEffect(() => {
+      if (!text) return;
+
+      let index = 0;
+      setDisplayedText('');
+      setIsComplete(false);
+
+      const interval = setInterval(() => {
+        if (index < text.length) {
+          setDisplayedText(text.slice(0, index + 1));
+          index++;
+        } else {
+          setIsComplete(true);
+          clearInterval(interval);
+        }
+      }, speed);
+
+      return () => clearInterval(interval);
+    }, [text, speed]);
+
+    return { displayedText, isComplete };
+  };
+
+  // Dynamic summary generator with personalized witty comments
   const generatePlaceholderSummary = () => {
     const progress = currentBook.progress || 0;
     const currentPage = currentBook.currentPage || 1;
     const totalPages = currentBook.totalPages || 1;
+    const userName = user?.name || user?.email?.split('@')[0] || 'bookworm';
+
+    // Witty comments based on reading progress
+    const getWittyComment = (progress, currentPage, totalPages) => {
+      const wittyComments = {
+        justStarted: [
+          "Time to crack open this literary treasure!",
+          "The adventure begins... are you ready?",
+          "First page jitters are totally normal!",
+          "Every great reader starts with a single page."
+        ],
+        early: [
+          "You're just getting warmed up!",
+          "The plot is thickening... or is that your curiosity?",
+          "Already hooked? I can tell!",
+          "Building momentum like a literary locomotive!"
+        ],
+        middle: [
+          "You're in the sweet spot of the story!",
+          "The plot twists are coming... I can feel it!",
+          "Halfway through and still turning pages? That's commitment!",
+          "You're officially past the point of no return!"
+        ],
+        almostDone: [
+          "The finish line is in sight!",
+          "You're so close to that satisfying 'The End' feeling!",
+          "Almost there... but don't rush the climax!",
+          "The final chapters await your eager eyes!"
+        ],
+        finished: [
+          "Congratulations on completing this literary journey!",
+          "You did it! Time for that post-book glow!",
+          "Another book conquered! What's next on your list?",
+          "The satisfaction of finishing a good book is unmatched!"
+        ]
+      };
+
+      if (progress === 0) {
+        return wittyComments.justStarted[Math.floor(Math.random() * wittyComments.justStarted.length)];
+      } else if (progress < 25) {
+        return wittyComments.early[Math.floor(Math.random() * wittyComments.early.length)];
+      } else if (progress < 75) {
+        return wittyComments.middle[Math.floor(Math.random() * wittyComments.middle.length)];
+      } else if (progress < 95) {
+        return wittyComments.almostDone[Math.floor(Math.random() * wittyComments.almostDone.length)];
+      } else {
+        return wittyComments.finished[Math.floor(Math.random() * wittyComments.finished.length)];
+      }
+    };
+
+    const wittyComment = getWittyComment(progress, currentPage, totalPages);
 
     if (progress === 0) {
-      return `Welcome to "${currentBook.title}"! Ready to start reading?`;
+      return `Welcome back, ${userName}! ${wittyComment} Ready to dive into "${currentBook.title}"?`;
     } else {
-      return `Welcome back to "${currentBook.title}"! You're on page ${currentPage} of ${totalPages}. What would you like to discuss?`;
+      return `Welcome back, ${userName}! ${wittyComment} You're on page ${currentPage} of ${totalPages} in "${currentBook.title}". What would you like to discuss?`;
     }
   };
 
@@ -145,15 +227,62 @@ export default function BookChat({ book, onBack }) {
   // Add initial AI message when component mounts
   useEffect(() => {
     const initialMessage = generatePlaceholderSummary();
+    setWelcomeMessageText(initialMessage);
+    setIsWelcomeTyping(true);
+    
+    // Start with an empty welcome message that will be animated
     setMessages([
       {
         id: '1',
-        text: initialMessage,
+        text: '',
         isUser: false,
         timestamp: new Date(),
+        isWelcomeMessage: true,
       },
     ]);
   }, []);
+
+  // Typing animation for welcome message
+  const { displayedText, isComplete } = useTypingAnimation(welcomeMessageText, 40);
+
+  // Update welcome message as it types
+  useEffect(() => {
+    if (displayedText && isWelcomeTyping) {
+      setMessages(prev => prev.map(msg => 
+        msg.isWelcomeMessage 
+          ? { ...msg, text: displayedText }
+          : msg
+      ));
+    }
+    
+    if (isComplete && isWelcomeTyping) {
+      setIsWelcomeTyping(false);
+    }
+  }, [displayedText, isComplete, isWelcomeTyping]);
+
+  // Cursor blinking animation for typing
+  useEffect(() => {
+    if (isWelcomeTyping) {
+      const blinkAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(cursorBlinkAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(cursorBlinkAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      blinkAnimation.start();
+      return () => blinkAnimation.stop();
+    } else {
+      cursorBlinkAnim.setValue(1);
+    }
+  }, [isWelcomeTyping, cursorBlinkAnim]);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -208,45 +337,47 @@ export default function BookChat({ book, onBack }) {
     }
   };
 
-  // Create PanResponder for line dragging
+  // Create PanResponder for pixelated block dragging
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
 
     onPanResponderGrant: event => {
-      // Calculate which line was touched
+      // Calculate which block was touched
       const touchX = event.nativeEvent.locationX;
-      const lineWidth = 3; // Width of each line
-      const lineSpacing = 2; // Space between lines
-      const totalWidth = lineWidth + lineSpacing;
-      const lineIndex = Math.floor(touchX / totalWidth);
-      setDraggedLineIndex(lineIndex);
+      const blockWidth = 8; // Width of each pixelated block
+      const blockSpacing = 3; // Space between blocks
+      const totalWidth = blockWidth + blockSpacing;
+      const blockIndex = Math.floor(touchX / totalWidth);
+      setDraggedLineIndex(blockIndex);
     },
 
     onPanResponderMove: event => {
-      // Update which line is being dragged during movement
+      // Update which block is being dragged during movement
       const touchX = event.nativeEvent.locationX;
-      const lineWidth = 3;
-      const lineSpacing = 2;
-      const totalWidth = lineWidth + lineSpacing;
-      const lineIndex = Math.floor(touchX / totalWidth);
-      setDraggedLineIndex(lineIndex);
+      const blockWidth = 8;
+      const blockSpacing = 3;
+      const totalWidth = blockWidth + blockSpacing;
+      const blockIndex = Math.floor(touchX / totalWidth);
+      setDraggedLineIndex(blockIndex);
     },
 
     onPanResponderRelease: async event => {
       const touchX = event.nativeEvent.locationX;
-      const lineWidth = 3;
-      const lineSpacing = 2;
-      const totalWidth = lineWidth + lineSpacing;
-      const lineIndex = Math.floor(touchX / totalWidth);
+      const blockWidth = 8;
+      const blockSpacing = 3;
+      const totalWidth = blockWidth + blockSpacing;
+      const blockIndex = Math.floor(touchX / totalWidth);
 
-      // Convert line index to page number (assuming lines represent pages)
-      const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines max
+      // Convert block index to page number based on total blocks
+      const totalBlocks = 32;
+      const clampedBlockIndex = Math.max(0, Math.min(blockIndex, totalBlocks - 1));
+      const progressPercentage = (clampedBlockIndex / (totalBlocks - 1)) * 100;
       const newPage = Math.max(
         1,
         Math.min(
           currentBook.totalPages,
-          Math.round((lineIndex / maxLines) * currentBook.totalPages) + 1
+          Math.round((progressPercentage / 100) * currentBook.totalPages)
         )
       );
 
@@ -343,51 +474,38 @@ export default function BookChat({ book, onBack }) {
   };
 
   const renderPageLines = () => {
-    const maxLines = Math.min(currentBook.totalPages, 50); // Limit to 50 lines for performance
-    const lines = [];
+    // Create pixelated progress bar with fixed number of blocks
+    const totalBlocks = 32; // Fixed number of pixelated blocks
+    const progressPercentage = currentBook.progress || 0;
+    const filledBlocks = Math.floor((progressPercentage / 100) * totalBlocks);
+    const blocks = [];
 
-    for (let i = 0; i < maxLines; i++) {
-      const isCurrentPage =
-        Math.round((i / maxLines) * currentBook.totalPages) + 1 ===
-        currentBook.currentPage;
+    for (let i = 0; i < totalBlocks; i++) {
+      const isFilled = i < filledBlocks;
+      const isCurrentBlock = i === filledBlocks - 1 && progressPercentage > 0;
       const isDragged = draggedLineIndex === i;
-      const isCompleted =
-        Math.round((i / maxLines) * currentBook.totalPages) + 1 <
-        currentBook.currentPage;
 
-      // All lines have the same height - no bell curve variation (20% bigger)
-      const baseHeight = 19.2; // 16 * 1.2 (20% increase)
-
-      // Slightly taller if being dragged or is current page
-      const finalHeight = isDragged
-        ? baseHeight * 1.5
-        : isCurrentPage
-          ? baseHeight * 1.25
-          : baseHeight;
-
-      lines.push(
+      blocks.push(
         <View
           key={i}
           style={[
-            styles.pageLine,
+            styles.pixelatedBlock,
             {
-              height: finalHeight,
-              backgroundColor: isCompleted
+              backgroundColor: isFilled
                 ? theme.colors.blue
-                : isCurrentPage
-                  ? theme.colors.blueMuted
-                  : theme.colors.surfaceElevated,
-              borderColor: isCurrentPage
+                : theme.colors.surfaceElevated,
+              borderColor: isFilled
                 ? theme.colors.blue
                 : theme.colors.borderSubtle,
-              transform: [{ scaleY: isDragged ? 1.2 : 1 }],
+              transform: [{ scale: isDragged ? 1.1 : isCurrentBlock ? 1.05 : 1 }],
+              opacity: isFilled ? 1 : 0.6,
             },
           ]}
         />
       );
     }
 
-    return lines;
+    return blocks;
   };
 
   const renderMessage = message => (
@@ -420,6 +538,16 @@ export default function BookChat({ book, onBack }) {
           ]}
         >
           {message.text}
+          {message.isWelcomeMessage && isWelcomeTyping && (
+            <Animated.Text 
+              style={[
+                styles.typingCursor,
+                { opacity: cursorBlinkAnim }
+              ]}
+            >
+              |
+            </Animated.Text>
+          )}
         </Text>
       </View>
     </View>
@@ -439,7 +567,7 @@ export default function BookChat({ book, onBack }) {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header Section with Back Button */}
+        {/* Header Section with Back Button and Progress Bar */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity
@@ -449,8 +577,66 @@ export default function BookChat({ book, onBack }) {
               <Text style={styles.backButtonText}>← Library</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.headerTitleContainer}></View>
-          <View style={styles.headerRight}></View>
+          <View style={styles.headerRight}>
+            {/* Progress Bar Section - Aligned with right column (chatbox) */}
+            <View style={styles.progressSection}>
+              <View style={styles.pageScrollContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.progressArrow,
+                    currentBook.currentPage <= 1 &&
+                      styles.progressArrowDisabled,
+                  ]}
+                  onPress={() => handlePageChange(-1)}
+                  disabled={currentBook.currentPage <= 1}
+                >
+                  <Text
+                    style={[
+                      styles.progressArrowText,
+                      currentBook.currentPage <= 1 &&
+                        styles.progressArrowTextDisabled,
+                    ]}
+                  >
+                    ‹
+                  </Text>
+                </TouchableOpacity>
+
+                <View
+                  style={styles.pageLinesContainer}
+                  {...panResponder.panHandlers}
+                >
+                  {renderPageLines()}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.progressArrow,
+                    currentBook.currentPage >= currentBook.totalPages &&
+                      styles.progressArrowDisabled,
+                  ]}
+                  onPress={() => handlePageChange(1)}
+                  disabled={currentBook.currentPage >= currentBook.totalPages}
+                >
+                  <Text
+                    style={[
+                      styles.progressArrowText,
+                      currentBook.currentPage >= currentBook.totalPages &&
+                        styles.progressArrowTextDisabled,
+                    ]}
+                  >
+                    ›
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Page Number Display - Positioned under the progress bar */}
+              <View style={styles.pageNumberContainer}>
+                <Text style={styles.pageNumberText}>
+                  {String(currentBook.currentPage)} / {String(currentBook.totalPages)}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Main Content Area */}
@@ -491,13 +677,13 @@ export default function BookChat({ book, onBack }) {
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Pages</Text>
                     <Text style={styles.infoValue}>
-                      {currentBook.totalPages || 'Unknown'}
+                      {String(currentBook.totalPages || 'Unknown')}
                     </Text>
                   </View>
                 </View>
 
                 {currentBook.categories &&
-                  currentBook.categories.length > 0 && (
+                  currentBook.categories.length > 0 ? (
                     <>
                       <View style={styles.infoDivider} />
                       <View style={styles.infoRow}>
@@ -509,9 +695,9 @@ export default function BookChat({ book, onBack }) {
                         </View>
                       </View>
                     </>
-                  )}
+                  ) : null}
 
-                {currentBook.publisher && (
+                {currentBook.publisher ? (
                   <>
                     <View style={styles.infoDivider} />
                     <View style={styles.infoRow}>
@@ -523,9 +709,9 @@ export default function BookChat({ book, onBack }) {
                       </View>
                     </View>
                   </>
-                )}
+                ) : null}
 
-                {currentBook.isbn && (
+                {currentBook.isbn ? (
                   <>
                     <View style={styles.infoDivider} />
                     <View style={styles.infoRow}>
@@ -537,7 +723,7 @@ export default function BookChat({ book, onBack }) {
                       </View>
                     </View>
                   </>
-                )}
+                ) : null}
 
                 <View style={styles.infoDivider} />
                 <View style={styles.infoRow}>
@@ -555,7 +741,7 @@ export default function BookChat({ book, onBack }) {
                     <Text style={styles.infoLabel}>Reading Time</Text>
                     <Text style={styles.infoValue}>
                       {currentBook.totalPages
-                        ? Math.ceil(currentBook.totalPages / 2) + ' min'
+                        ? String(Math.ceil(currentBook.totalPages / 2)) + ' min'
                         : 'Unknown'}
                     </Text>
                   </View>
@@ -566,12 +752,12 @@ export default function BookChat({ book, onBack }) {
                   <View style={styles.infoTextContainer}>
                     <Text style={styles.infoLabel}>Progress</Text>
                     <Text style={styles.infoValue}>
-                      {currentBook.progress || 0}% Complete
+                      {String(currentBook.progress || 0)}% Complete
                     </Text>
                   </View>
                 </View>
 
-                {currentBook.description && (
+                {currentBook.description ? (
                   <>
                     <View style={styles.infoDivider} />
                     <View style={styles.infoRow}>
@@ -583,104 +769,45 @@ export default function BookChat({ book, onBack }) {
                       </View>
                     </View>
                   </>
-                )}
+                ) : null}
 
-                {currentBook.averageRating && (
+                {currentBook.averageRating ? (
                   <>
                     <View style={styles.infoDivider} />
                     <View style={styles.infoRow}>
                       <View style={styles.infoTextContainer}>
                         <Text style={styles.infoLabel}>Rating</Text>
                         <Text style={styles.infoValue}>
-                          {currentBook.averageRating}/5 ⭐
+                          {String(currentBook.averageRating)}/5 ⭐
                         </Text>
                       </View>
                     </View>
                   </>
-                )}
+                ) : null}
 
                 {currentBook.pageCount &&
-                  currentBook.pageCount !== currentBook.totalPages && (
+                  currentBook.pageCount !== currentBook.totalPages ? (
                     <>
                       <View style={styles.infoDivider} />
                       <View style={styles.infoRow}>
                         <View style={styles.infoTextContainer}>
                           <Text style={styles.infoLabel}>Page Count</Text>
                           <Text style={styles.infoValue}>
-                            {currentBook.pageCount}
+                            {String(currentBook.pageCount)}
                           </Text>
                         </View>
                       </View>
                     </>
-                  )}
+                  ) : null}
               </View>
             </View>
           </View>
 
           {/* Right Column: Header and Chatbox */}
           <View style={styles.rightColumn}>
-            {/* Right Column Header with Progress Bar, Book Title, and Author */}
+            {/* Right Column Header with Book Title and Author */}
             <View style={styles.rightColumnHeader}>
-              {/* Progress Bar Section - Now at the top */}
-              <View style={styles.progressSection}>
-                <View style={styles.pageScrollContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.progressArrow,
-                      currentBook.currentPage <= 1 &&
-                        styles.progressArrowDisabled,
-                    ]}
-                    onPress={() => handlePageChange(-1)}
-                    disabled={currentBook.currentPage <= 1}
-                  >
-                    <Text
-                      style={[
-                        styles.progressArrowText,
-                        currentBook.currentPage <= 1 &&
-                          styles.progressArrowTextDisabled,
-                      ]}
-                    >
-                      ‹
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View
-                    style={styles.pageLinesContainer}
-                    {...panResponder.panHandlers}
-                  >
-                    {renderPageLines()}
-                  </View>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.progressArrow,
-                      currentBook.currentPage >= currentBook.totalPages &&
-                        styles.progressArrowDisabled,
-                    ]}
-                    onPress={() => handlePageChange(1)}
-                    disabled={currentBook.currentPage >= currentBook.totalPages}
-                  >
-                    <Text
-                      style={[
-                        styles.progressArrowText,
-                        currentBook.currentPage >= currentBook.totalPages &&
-                          styles.progressArrowTextDisabled,
-                      ]}
-                    >
-                      ›
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Page Number Display - Positioned under the progress bar */}
-                <View style={styles.pageNumberContainer}>
-                  <Text style={styles.pageNumberText}>
-                    {currentBook.currentPage} / {currentBook.totalPages}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Book Title and Author Section - Now below progress bar */}
+              {/* Book Title and Author Section */}
               <View style={styles.headerTopRow}>
                 <View style={styles.bookTitleAuthorContainer}>
                   <Text style={styles.rightColumnBookTitle}>
@@ -827,14 +954,15 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerLeft: {
-    flex: 1,
+    width: 200,
     alignItems: 'flex-start',
+    paddingHorizontal: 12,
   },
   headerRight: {
     flex: 1,
-    alignItems: 'flex-end',
-    flexDirection: 'row',
-    gap: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   backButtonModal: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -843,13 +971,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.25)',
     elevation: 4,
   },
   backButtonText: {
@@ -888,7 +1010,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
-    marginBottom: 12,
+    paddingTop: 8,
+    backgroundColor: 'transparent',
   },
   mainContent: {
     flex: 1,
@@ -912,13 +1035,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
   },
   infoHeader: {
@@ -1009,7 +1126,7 @@ const styles = StyleSheet.create({
   pageScrollContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     justifyContent: 'center',
     marginBottom: 8,
   },
@@ -1028,15 +1145,21 @@ const styles = StyleSheet.create({
   },
   pageLinesContainer: {
     flexDirection: 'row',
-    alignItems: 'center', // Changed from 'flex-end' to 'center' for proper alignment
+    alignItems: 'center',
     justifyContent: 'center',
-    height: 38.4, // Increased by 20% (32 * 1.2)
+    height: 32,
     gap: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: theme.colors.borderStrong,
+    minWidth: 300,
   },
-  pageLine: {
-    width: 4,
-    borderRadius: 8, // Much more rounded for pill shape
+  pixelatedBlock: {
+    width: 10,
+    height: 22,
+    borderRadius: 2, // Small radius for pixelated look
     borderWidth: 1,
     transition: 'all 0.2s ease',
   },
@@ -1110,10 +1233,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   userBubble: {
-    backgroundColor: theme.colors.blueMuted,
+    backgroundColor: theme.colors.orange,
     borderBottomRightRadius: 4,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
+    borderWidth: 0,
   },
   aiBubble: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -1163,6 +1285,12 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: theme.colors.textMuted,
+  },
+  typingCursor: {
+    color: theme.colors.blue,
+    fontSize: 16,
+    fontWeight: 'bold',
+    opacity: 1,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -1217,13 +1345,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.borderStrong,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
     elevation: 6,
     zIndex: 1000, // Ensure it stays above other elements
   },

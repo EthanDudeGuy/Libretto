@@ -191,10 +191,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.4,
-    shadowRadius: 30,
+    boxShadow: '0px 20px 30px rgba(0, 0, 0, 0.4)',
     elevation: 20,
   },
   blurContainer: {

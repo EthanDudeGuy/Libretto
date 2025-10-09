@@ -14,6 +14,7 @@ import Svg, { Path } from 'react-native-svg';
 import theme from '../constants/theme';
 import BookCard from '../components/BookCard';
 import AddBookModal from '../components/AddBookModal';
+import SettingsScreen from './SettingsScreen';
 import {
   loadBooks,
   saveBooks,
@@ -24,9 +25,9 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Homepage({ onNavigateToChat }) {
   const [books, setBooks] = useState([]);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAddBookModal, setShowAddBookModal] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
   const spinValue = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -143,18 +144,17 @@ export default function Homepage({ onNavigateToChat }) {
     scaleAnim.setValue(1);
   }, [fadeAnim, scaleAnim]);
 
-  const handleLogout = () => {
-    setShowSettings(false);
-    setShowLogoutConfirm(true);
-  };
-
-  const confirmLogout = async () => {
-    setShowLogoutConfirm(false);
+  const handleLogout = async () => {
+    setShowUserDropdown(false);
     await logout();
   };
 
-  const cancelLogout = () => {
-    setShowLogoutConfirm(false);
+  const toggleUserDropdown = () => {
+    setShowUserDropdown(!showUserDropdown);
+  };
+
+  const handleSettings = () => {
+    setShowUserDropdown(false);
     setShowSettings(true);
   };
 
@@ -226,15 +226,10 @@ export default function Homepage({ onNavigateToChat }) {
                 </Animated.View>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.settingsButton}
-                onPress={() => setShowSettings(true)}
+                style={styles.userIconButton}
+                onPress={toggleUserDropdown}
               >
-                <Image
-                  source={require('../../assets/setting.png')}
-                  style={styles.settingsIcon}
-                  resizeMode='contain'
-                  tintColor={theme.colors.textPrimary}
-                />
+                <Text style={styles.userIcon}>👤</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -280,42 +275,34 @@ export default function Homepage({ onNavigateToChat }) {
         </View>
       </Animated.View>
 
-      <Modal
-        visible={showSettings}
-        transparent={true}
-        animationType='fade'
-        onRequestClose={() => setShowSettings(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.settingsModal}>
-            <Text style={styles.settingsTitle}>Settings</Text>
-
-            <TouchableOpacity
-              style={[
-                styles.settingsOption,
-                { backgroundColor: '#ff6b6b', borderColor: '#ff5252' },
-              ]}
-              onPress={handleLogout}
-            >
-              <Text
-                style={[
-                  styles.settingsOptionText,
-                  { color: 'white', fontWeight: 'bold' },
-                ]}
+      {/* User Dropdown */}
+      {showUserDropdown && (
+        <View style={styles.dropdownOverlay}>
+          <TouchableOpacity
+            style={styles.dropdownBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowUserDropdown(false)}
+          >
+            <View style={styles.userDropdown}>
+              <TouchableOpacity
+                style={styles.dropdownOption}
+                onPress={handleSettings}
               >
-                🚪 Logout
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setShowSettings(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+                <Text style={styles.dropdownOptionIcon}>⚙️</Text>
+                <Text style={styles.dropdownOptionText}>Settings</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.dropdownOption, styles.logoutOption]}
+                onPress={handleLogout}
+              >
+                <Text style={styles.dropdownOptionIcon}>🚪</Text>
+                <Text style={[styles.dropdownOptionText, styles.logoutText]}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      )}
 
       <AddBookModal
         visible={showAddBookModal}
@@ -324,51 +311,10 @@ export default function Homepage({ onNavigateToChat }) {
         onBookAddedAndNavigate={handleBookAddedAndNavigate}
       />
 
-      {/* Custom Logout Confirmation Modal */}
-      <Modal
-        visible={showLogoutConfirm}
-        transparent={true}
-        animationType='fade'
-        onRequestClose={cancelLogout}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.settingsModal}>
-            <Text style={styles.settingsTitle}>Confirm Logout</Text>
-            <Text
-              style={[
-                styles.settingsOptionText,
-                { marginBottom: 20, textAlign: 'center' },
-              ]}
-            >
-              Are you sure you want to logout?
-            </Text>
+      {showSettings && (
+        <SettingsScreen onClose={() => setShowSettings(false)} />
+      )}
 
-            <TouchableOpacity
-              style={[
-                styles.settingsOption,
-                { backgroundColor: '#ff6b6b', borderColor: '#ff5252' },
-              ]}
-              onPress={confirmLogout}
-            >
-              <Text
-                style={[
-                  styles.settingsOptionText,
-                  { color: 'white', fontWeight: 'bold' },
-                ]}
-              >
-                🚪 Logout
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={cancelLogout}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -469,7 +415,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'Inter_600SemiBold',
   },
-  settingsButton: {
+  userIconButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -479,9 +425,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
   },
-  settingsIcon: {
-    width: 22,
-    height: 22,
+  userIcon: {
+    fontSize: 22,
+    color: theme.colors.textPrimary,
   },
   listContainer: {
     paddingBottom: 22,
@@ -493,57 +439,60 @@ const styles = StyleSheet.create({
   bookCardContainer: {
     marginHorizontal: 25,
   },
-  modalOverlay: {
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  dropdownBackdrop: {
     flex: 1,
-    backgroundColor: theme.colors.overlay,
-    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  userDropdown: {
+    position: 'absolute',
+    top: 120,
+    right: 20,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    paddingVertical: 8,
+    minWidth: 160,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  dropdownOption: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
   },
-  settingsModal: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 22,
-    padding: 26,
-    width: '80%',
-    maxWidth: 300,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
+  logoutOption: {
+    borderBottomWidth: 0,
   },
-  settingsTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  dropdownOptionIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
     color: theme.colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 22,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_500Medium',
   },
-  settingsOption: {
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 13,
-    padding: 18,
-    marginBottom: 13,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  settingsOptionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
-  },
-  cancelButton: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 13,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-  },
-  cancelButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textMuted,
-    textAlign: 'center',
-    fontFamily: 'Inter_600SemiBold',
+  logoutText: {
+    color: '#ff6b6b',
   },
   loadingContainer: {
     flex: 1,

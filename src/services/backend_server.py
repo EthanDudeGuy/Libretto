@@ -294,4 +294,4 @@ if __name__ == "__main__":
         print("      - Set environment variable: export ANTHROPIC_API_KEY=your_key_here")
         print("      - Or edit line 29 in this file and replace 'your_api_key_here' with your actual key")
     
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
