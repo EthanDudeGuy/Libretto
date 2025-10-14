@@ -358,7 +358,7 @@ export default function CombinedGreetingModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 20, 25, 0.85)',
+    backgroundColor: theme.colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -501,13 +501,13 @@ const styles = StyleSheet.create({
   continueButton: {
     paddingVertical: 14,
     borderRadius: 16,
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
   },
   continueButtonDisabled: {
-    backgroundColor: 'rgba(66, 133, 244, 0.4)',
+    backgroundColor: theme.colors.accentMuted,
   },
   continueButtonText: {
     fontSize: 16,

@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
   registerButton: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   registerButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
+    color: '#fff',
     fontFamily: 'Inter_600SemiBold',
   },
   footer: {
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   loginLink: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.colors.blue,
+    color: theme.colors.orange,
     fontFamily: 'Inter_600SemiBold',
   },
 });

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import theme from '../constants/theme';
-import BookCard from '../components/BookCard';
+import HorizontalBookCard from '../components/HorizontalBookCard';
 import AddBookModal from '../components/AddBookModal';
 import SettingsScreen from './SettingsScreen';
 import {
@@ -29,7 +29,6 @@ export default function Homepage({ onNavigateToChat }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAddBookModal, setShowAddBookModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const spinValue = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const { logout, user } = useAuth();
@@ -92,17 +91,7 @@ export default function Homepage({ onNavigateToChat }) {
     }
   };
 
-  const spinIcon = () => {
-    spinValue.setValue(0);
-    Animated.timing(spinValue, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: false,
-    }).start();
-  };
-
   const handleAddBookPress = () => {
-    spinIcon();
     setShowAddBookModal(true);
   };
 
@@ -159,13 +148,11 @@ export default function Homepage({ onNavigateToChat }) {
   };
 
   const renderBook = ({ item }) => (
-    <View style={styles.bookCardContainer}>
-      <BookCard
-        book={item}
-        onUpdateBookmark={updateBookmark}
-        onChat={handleChatWithBook}
-      />
-    </View>
+    <HorizontalBookCard
+      book={item}
+      onUpdateBookmark={updateBookmark}
+      onChat={handleChatWithBook}
+    />
   );
 
   return (
@@ -202,28 +189,16 @@ export default function Homepage({ onNavigateToChat }) {
                 style={styles.addButton}
                 onPress={handleAddBookPress}
               >
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        rotate: spinValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '360deg'],
-                        }),
-                      },
-                    ],
-                  }}
-                >
-                  <Svg width='24' height='24' viewBox='0 0 24 24' fill='none'>
-                    <Path
-                      d='M7 12L12 12M12 12L17 12M12 12V7M12 12L12 17'
-                      stroke={theme.colors.textPrimary}
-                      strokeWidth='2'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                    />
-                  </Svg>
-                </Animated.View>
+                <Svg width='16' height='16' viewBox='0 0 24 24' fill='none' style={styles.plusIcon}>
+                  <Path
+                    d='M7 12L12 12M12 12L17 12M12 12V7M12 12L12 17'
+                    stroke={theme.colors.textPrimary}
+                    strokeWidth='2'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  />
+                </Svg>
+                <Text style={styles.addButtonText}>Add book</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.userIconButton}
@@ -256,8 +231,6 @@ export default function Homepage({ onNavigateToChat }) {
                 data={books}
                 renderItem={renderBook}
                 keyExtractor={item => item.id}
-                numColumns={3}
-                columnWrapperStyle={styles.row}
                 contentContainerStyle={styles.listContainer}
                 showsVerticalScrollIndicator={false}
               />
@@ -387,13 +360,21 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.orange,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: theme.colors.orange,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   title: {
     fontSize: 31,
@@ -424,6 +405,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
   userIcon: {
     fontSize: 22,
@@ -431,13 +420,6 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 22,
-  },
-  row: {
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  bookCardContainer: {
-    marginHorizontal: 25,
   },
   dropdownOverlay: {
     position: 'absolute',
@@ -527,5 +509,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     fontFamily: 'Inter_400Regular',
+  },
+  plusIcon: {
+    marginRight: 8,
+  },
+  addButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

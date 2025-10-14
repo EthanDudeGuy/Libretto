@@ -290,8 +290,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: theme.colors.blue,
-    borderColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
+    borderColor: theme.colors.orange,
   },
   checkmark: {
     color: theme.colors.textPrimary,
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   },
   demoNote: {
     fontSize: theme.typography.xs,
-    color: theme.colors.blue,
+    color: theme.colors.orange,
     fontFamily: theme.typography.fontFamily,
     fontStyle: 'italic',
     marginTop: theme.spacing.x1,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   },
   createAccountLink: {
     fontSize: theme.typography.sm,
-    color: theme.colors.blue,
+    color: theme.colors.orange,
     fontWeight: '600',
     fontFamily: theme.typography.fontFamilySemibold,
   },
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   },
   legalLink: {
     fontSize: theme.typography.xs,
-    color: theme.colors.blue,
+    color: theme.colors.orange,
     fontFamily: theme.typography.fontFamily,
     textDecorationLine: 'underline',
   },

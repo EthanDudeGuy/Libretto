@@ -1053,7 +1053,7 @@ const styles = StyleSheet.create({
   infoTitleUnderline: {
     width: 40,
     height: 3,
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     borderRadius: 2,
   },
   infoContent: {
@@ -1260,7 +1260,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
   userText: {
-    color: theme.colors.textPrimary,
+    color: '#fff',
   },
   aiText: {
     color: theme.colors.textSecondary,
@@ -1287,7 +1287,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.textMuted,
   },
   typingCursor: {
-    color: theme.colors.blue,
+    color: theme.colors.orange,
     fontSize: 16,
     fontWeight: 'bold',
     opacity: 1,
@@ -1317,7 +1317,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   sendButton: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.orange,
     width: 54,
     height: 54,
     borderRadius: 12,
@@ -1325,7 +1325,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: 'rgba(66, 133, 244, 0.4)',
+    backgroundColor: theme.colors.accentMuted,
   },
   sendButtonText: {
     color: '#fff',

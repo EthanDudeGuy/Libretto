@@ -1,31 +1,22 @@
-// Centralized design system for Libretto (Glassmorphism + Purple Gradient theme)
+// Centralized design system for Libretto (Dark UI + Coral Accent theme)
 // Colors, spacing, typography, and component tokens for sophisticated literary companion
-// Features: Glassmorphism effects, rich purple gradients, spoiler-free AI discussions
+// Features: Dark near-black backgrounds, coral/orange accents, horizontal book cards, spoiler-free AI discussions
 
 export const colors = {
-  // Core Glassmorphism Backgrounds (restored from working theme)
-  background: '#0f1419', // dark navy base
-  backgroundGradient: ['#1a0b2e', '#16213e', '#0f1419'], // Rich purple gradient
-  surface: '#131a21', // Solid surface (was working well)
-  surfaceElevated: '#17202a', // Elevated surface (was working well)
+  // Dark UI Backgrounds (near-black base)
+  background: '#1a1a1a', // Near-black base
+  backgroundGradient: ['#1a1a1a', '#1f1f1f'], // Subtle dark gradient
+  surface: '#242424', // Dark cards
+  surfaceElevated: '#2d2d2d', // Elevated elements
   surfaceMuted: 'rgba(255, 255, 255, 0.05)', // Subtle glass
-  overlay: 'rgba(2, 6, 12, 0.7)', // Dark overlay (restored from working theme)
+  overlay: 'rgba(0, 0, 0, 0.85)', // Dark modal overlay
 
-  // Purple Gradient System
-  purple: {
-    primary: '#8b5cf6', // Main purple
-    secondary: '#a855f7', // Lighter purple
-    accent: '#c084fc', // Accent purple
-    dark: '#6d28d9', // Dark purple
-    light: '#e9d5ff', // Light purple
-  },
-
-  // Glassmorphism Effects
+  // Glassmorphism Effects (updated for dark theme)
   glass: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: 'rgba(255, 255, 255, 0.2)',
-    shadow: 'rgba(0, 0, 0, 0.1)',
-    backdrop: 'rgba(255, 255, 255, 0.05)',
+    background: 'rgba(255, 255, 255, 0.08)',
+    border: 'rgba(255, 255, 255, 0.15)',
+    shadow: 'rgba(0, 0, 0, 0.3)',
+    backdrop: 'rgba(255, 255, 255, 0.03)',
   },
 
   // Text (restored from working theme)
@@ -34,16 +25,16 @@ export const colors = {
   textMuted: 'rgba(201, 209, 217, 0.65)', // Properly muted (was working well)
   textInverse: '#0f1419',
 
-  // Accents (purple-based)
-  accent: '#8b5cf6',
-  accentHover: '#a855f7',
-  accentMuted: 'rgba(139, 92, 246, 0.3)',
-  outline: '#8b5cf6',
+  // Accents (coral/orange-based)
+  accent: '#fe8a1f',
+  accentHover: '#ff9f40',
+  accentMuted: 'rgba(254, 138, 31, 0.3)',
+  outline: '#fe8a1f',
 
-  // Borders (restored from working theme)
-  borderSubtle: 'rgba(230, 237, 243, 0.08)', // Proper subtle border (was working well)
-  borderStrong: 'rgba(230, 237, 243, 0.14)', // Proper strong border (was working well)
-  borderGlass: 'rgba(255, 255, 255, 0.15)',
+  // Borders (updated for dark theme)
+  borderSubtle: 'rgba(255, 255, 255, 0.08)', // Subtle border for dark theme
+  borderStrong: 'rgba(255, 255, 255, 0.15)', // Strong border for dark theme
+  borderGlass: 'rgba(255, 255, 255, 0.12)',
 
   // Orange Color System (primary accent color)
   orange: '#fe8a1f', // Primary orange/coral color
@@ -61,7 +52,7 @@ export const colors = {
   success: '#10b981',
   warning: '#f59e0b',
   danger: '#ef4444',
-  info: '#8b5cf6',
+  info: '#fe8a1f',
 };
 
 export const spacing = {
@@ -105,19 +96,20 @@ export const typography = {
 };
 
 export const components = {
-  // Glassmorphism Card System
+  // Dark Card System
   card: {
-    backgroundColor: colors.glass.background,
-    borderColor: colors.glass.border,
+    backgroundColor: colors.surface,
+    borderColor: colors.borderSubtle,
     borderWidth: 1,
     radius: radii.lg,
     padding: spacing.x3,
     shadow: {
-      boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.15)',
-      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 5,
     },
-    // Glassmorphism backdrop blur (React Native implementation)
-    backdropFilter: 'blur(20px)',
   },
 
   cardElevated: {
@@ -127,38 +119,44 @@ export const components = {
     radius: radii.lg,
     padding: spacing.x3,
     shadow: {
-      boxShadow: '0px 12px 32px rgba(0, 0, 0, 0.2)',
-      elevation: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 8,
     },
   },
 
-  // Purple Gradient Buttons
+  // Coral/Orange Buttons
   buttonPrimary: {
-    backgroundColor: colors.purple.primary,
+    backgroundColor: colors.orange,
     backgroundDisabled: colors.accentMuted,
     textColor: '#fff',
     radius: radii.md,
     paddingV: spacing.x1_5,
     paddingH: spacing.x3,
     shadow: {
-      boxShadow: '0px 4px 8px rgba(147, 51, 234, 0.3)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
       elevation: 4,
     },
   },
 
   buttonSecondary: {
-    backgroundColor: colors.glass.background,
+    backgroundColor: colors.surface,
     textColor: colors.textPrimary,
-    borderColor: colors.purple.primary,
+    borderColor: colors.orange,
     borderWidth: 1,
     radius: radii.md,
     paddingV: spacing.x1_5,
     paddingH: spacing.x3,
   },
 
-  // Glassmorphism Inputs
+  // Dark Inputs
   input: {
-    backgroundColor: colors.glass.backdrop,
+    backgroundColor: colors.surfaceElevated,
     borderColor: colors.borderGlass,
     borderWidth: 1,
     placeholder: colors.textMuted,
@@ -168,36 +166,42 @@ export const components = {
     paddingH: spacing.x3,
   },
 
-  // Book Card Specific (for library)
-  bookCard: {
-    backgroundColor: colors.glass.background,
-    borderColor: colors.glass.border,
+  // Horizontal Book Card (for library)
+  horizontalBookCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.borderSubtle,
     borderWidth: 1,
     radius: radii.lg,
     padding: spacing.x3,
     shadow: {
-      boxShadow: '0px 8px 20px rgba(0, 0, 0, 0.15)',
-      elevation: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      elevation: 4,
     },
   },
 
   // Chat Interface
   chatBubble: {
-    backgroundColor: colors.glass.background,
-    borderColor: colors.glass.border,
+    backgroundColor: colors.surface,
+    borderColor: colors.borderSubtle,
     borderWidth: 1,
     radius: radii.lg,
     padding: spacing.x2_5,
     shadow: {
-      boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
-      elevation: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 6,
+      elevation: 3,
     },
   },
 
   // Progress Bars
   progressBar: {
-    backgroundColor: colors.glass.backdrop,
-    progressColor: colors.purple.primary,
+    backgroundColor: colors.surfaceElevated,
+    progressColor: colors.orange,
     radius: radii.pill,
     height: 8,
   },
@@ -247,13 +251,13 @@ export const animations = {
     duration: 200,
   },
 
-  // Glassmorphism specific animations
-  glassHover: {
+  // Dark theme specific animations
+  cardHover: {
     backgroundColor: colors.surfaceElevated,
     duration: 200,
   },
 
-  glassPress: {
+  cardPress: {
     backgroundColor: colors.surfaceMuted,
     scale: 0.98,
     duration: 100,
@@ -262,10 +266,9 @@ export const animations = {
 
 // Gradient definitions for backgrounds
 export const gradients = {
-  primary: ['#1a0b2e', '#16213e', '#0f1419'],
-  purple: ['#8b5cf6', '#a855f7', '#c084fc'],
-  accent: ['#6d28d9', '#8b5cf6', '#a855f7'],
-  subtle: ['rgba(139, 92, 246, 0.1)', 'rgba(168, 85, 247, 0.05)'],
+  primary: ['#1a1a1a', '#1f1f1f'],
+  accent: ['#fe8a1f', '#ff9f40'],
+  subtle: ['rgba(254, 138, 31, 0.1)', 'rgba(255, 159, 64, 0.05)'],
 };
 
 const theme = {
