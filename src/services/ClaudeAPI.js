@@ -7,9 +7,10 @@ import {
 
 // Backend API endpoints (no more direct Claude API calls)
 // Use different URLs based on platform for React Native compatibility
-const BACKEND_BASE_URL = Platform.OS === 'ios' 
-  ? 'http://127.0.0.1:8001'  // iOS Simulator
-  : 'http://10.0.2.2:8001';  // Android Emulator
+const BACKEND_BASE_URL =
+  Platform.OS === 'android'
+    ? 'http://10.0.2.2:8001' // Android Emulator (special alias to the host machine)
+    : 'http://127.0.0.1:8001'; // iOS Simulator + web (both reach the host directly)
 const CHAT_ENDPOINT = `${BACKEND_BASE_URL}/api/chat`;
 const SUMMARY_ENDPOINT = `${BACKEND_BASE_URL}/api/summary`;
 const SAVE_SESSION_ENDPOINT = `${BACKEND_BASE_URL}/api/save-session`;

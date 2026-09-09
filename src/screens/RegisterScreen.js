@@ -10,10 +10,14 @@ import {
   Platform,
   ScrollView,
   Image,
+  ImageBackground,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import theme from '../constants/theme';
+
+const { width } = Dimensions.get('window');
 
 export default function RegisterScreen({ onNavigateToLogin }) {
   const [firstName, setFirstName] = useState('');
@@ -53,106 +57,146 @@ export default function RegisterScreen({ onNavigateToLogin }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <LinearGradient
-          colors={[theme.colors.background, theme.colors.surface]}
-          style={styles.gradient}
-        >
-          <View style={styles.content}>
-            {/* Logo and Title */}
-            <View style={styles.header}>
-              <Image
-                source={require('../../assets/logo.png')}
-                style={styles.logo}
-                resizeMode='contain'
-              />
-              <Text style={styles.title}>Join Libretto</Text>
-              <Text style={styles.subtitle}>
-                Create your account to start your literary journey
-              </Text>
-            </View>
+      <ImageBackground
+        source={require('../../assets/loginwallpaper.png')}
+        style={styles.backgroundImage}
+        resizeMode='cover'
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {/* Dark overlay for better text readability */}
+          <View style={styles.overlay} />
 
-            {/* Form */}
-            <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>First Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  placeholder='Enter your first name'
-                  placeholderTextColor={theme.colors.textMuted}
-                  autoCapitalize='words'
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder='Enter your email'
-                  placeholderTextColor={theme.colors.textMuted}
-                  keyboardType='email-address'
-                  autoCapitalize='none'
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder='Create a password (min 6 characters)'
-                  placeholderTextColor={theme.colors.textMuted}
-                  secureTextEntry
-                  autoCapitalize='none'
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
-                  style={styles.input}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder='Confirm your password'
-                  placeholderTextColor={theme.colors.textMuted}
-                  secureTextEntry
-                  autoCapitalize='none'
-                  autoCorrect={false}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.registerButton,
-                  isLoading && styles.registerButtonDisabled,
+          {/* Glass Card */}
+          <View style={styles.glassCard}>
+            <View style={styles.blurContainer}>
+              <LinearGradient
+                colors={[
+                  'rgba(255, 255, 255, 0.15)',
+                  'rgba(255, 255, 255, 0.08)',
                 ]}
-                onPress={handleRegister}
-                disabled={isLoading}
+                style={styles.glassGradient}
               >
-                <Text style={styles.registerButtonText}>
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                {/* Logo */}
+                <View style={styles.logoContainer}>
+                  <Image
+                    source={require('../../assets/logo.png')}
+                    style={styles.logo}
+                    resizeMode='contain'
+                  />
+                </View>
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account?</Text>
-              <TouchableOpacity onPress={onNavigateToLogin}>
-                <Text style={styles.loginLink}>Sign In</Text>
-              </TouchableOpacity>
+                {/* Welcome Text */}
+                <Text style={styles.welcomeTitle}>Join Libretto,</Text>
+                <Text style={styles.welcomeSubtitle}>
+                  Create your account to get started
+                </Text>
+
+                {/* First Name Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>First Name</Text>
+                  <View style={styles.inputBlur}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      placeholder='Enter your first name'
+                      placeholderTextColor='rgba(255, 255, 255, 0.44)'
+                      autoCapitalize='words'
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                {/* Email Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <View style={styles.inputBlur}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={email}
+                      onChangeText={setEmail}
+                      placeholder='Enter your email'
+                      placeholderTextColor='rgba(255, 255, 255, 0.44)'
+                      keyboardType='email-address'
+                      autoCapitalize='none'
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                {/* Password Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <View style={styles.inputBlur}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={password}
+                      onChangeText={setPassword}
+                      placeholder='Create a password (min 6 characters)'
+                      placeholderTextColor='rgba(255, 255, 255, 0.44)'
+                      secureTextEntry
+                      autoCapitalize='none'
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                {/* Confirm Password Input */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Confirm Password</Text>
+                  <View style={styles.inputBlur}>
+                    <TextInput
+                      style={styles.textInput}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder='Confirm your password'
+                      placeholderTextColor='rgba(255, 255, 255, 0.44)'
+                      secureTextEntry
+                      autoCapitalize='none'
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+
+                {/* Create Account Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.registerButton,
+                    isLoading && styles.registerButtonDisabled,
+                  ]}
+                  onPress={handleRegister}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.registerButtonText}>
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Footer */}
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>
+                    Already have an account?{' '}
+                  </Text>
+                  <TouchableOpacity onPress={onNavigateToLogin}>
+                    <Text style={styles.loginLink}>Sign in</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Terms and Privacy Links */}
+                <View style={styles.legalLinks}>
+                  <TouchableOpacity onPress={() => {/* Handle Terms of Service */}}>
+                    <Text style={styles.legalLink}>Terms of Service</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.legalSeparator}> • </Text>
+                  <TouchableOpacity onPress={() => {/* Handle Privacy Policy */}}>
+                    <Text style={styles.legalLink}>Privacy Policy</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
             </View>
           </View>
-        </LinearGradient>
-      </ScrollView>
+        </ScrollView>
+      </ImageBackground>
     </KeyboardAvoidingView>
   );
 }
@@ -160,97 +204,145 @@ export default function RegisterScreen({ onNavigateToLogin }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   scrollContainer: {
     flexGrow: 1,
-  },
-  gradient: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  header: {
     alignItems: 'center',
-    marginBottom: 40,
+    paddingHorizontal: theme.spacing.x2_5,
+    paddingVertical: theme.spacing.x5,
+  },
+  // Dark overlay for better text readability
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 20, 25, 0.4)',
+  },
+  // Glass Card
+  glassCard: {
+    width: width * 0.9,
+    maxWidth: 400,
+    borderRadius: theme.radii.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    boxShadow: '0px 20px 30px rgba(0, 0, 0, 0.4)',
+    elevation: 20,
+  },
+  blurContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(19, 26, 33, 0.8)',
+  },
+  glassGradient: {
+    padding: theme.spacing.x4,
+    paddingTop: theme.spacing.x5,
+  },
+  // Logo
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.x4,
   },
   logo: {
     width: 80,
     height: 80,
-    marginBottom: 24,
   },
-  title: {
-    fontSize: 32,
+  // Welcome Text
+  welcomeTitle: {
+    fontSize: theme.typography.xxl,
     fontWeight: 'bold',
     color: theme.colors.textPrimary,
-    marginBottom: 8,
-    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
+    marginBottom: theme.spacing.x1,
+    fontFamily: theme.typography.fontFamilyBold,
   },
-  subtitle: {
-    fontSize: 16,
+  welcomeSubtitle: {
+    fontSize: theme.typography.md,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    fontFamily: 'Inter_400Regular',
+    marginBottom: theme.spacing.x4,
+    fontFamily: theme.typography.fontFamily,
   },
-  form: {
-    marginBottom: 32,
-  },
+  // Inputs
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.x2_5,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
+  inputLabel: {
+    fontSize: theme.typography.md,
     color: theme.colors.textPrimary,
-    marginBottom: 8,
-    fontFamily: 'Inter_600SemiBold',
+    marginBottom: theme.spacing.x1_5,
+    fontFamily: theme.typography.fontFamilyMedium,
   },
-  input: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: theme.colors.textPrimary,
+  inputBlur: {
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    fontFamily: 'Inter_400Regular',
+    borderColor: theme.colors.borderStrong,
   },
+  textInput: {
+    paddingHorizontal: theme.spacing.x2,
+    paddingVertical: theme.spacing.x1_5,
+    fontSize: theme.typography.md,
+    color: theme.colors.textPrimary,
+    fontFamily: theme.typography.fontFamily,
+  },
+  // Create Account Button
   registerButton: {
     backgroundColor: theme.colors.orange,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: theme.radii.md,
+    paddingVertical: theme.spacing.x1_5,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: theme.spacing.x1,
   },
   registerButtonDisabled: {
-    backgroundColor: theme.colors.textMuted,
+    backgroundColor: theme.colors.accentMuted,
   },
   registerButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: theme.typography.md,
     color: '#fff',
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: theme.typography.fontFamilySemibold,
   },
+  // Footer
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    marginTop: theme.spacing.x3,
   },
   footerText: {
-    fontSize: 16,
+    fontSize: theme.typography.sm,
     color: theme.colors.textSecondary,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: theme.typography.fontFamily,
   },
   loginLink: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: theme.typography.sm,
     color: theme.colors.orange,
-    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
+    fontFamily: theme.typography.fontFamilySemibold,
+  },
+  // Legal Links
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: theme.spacing.x2,
+  },
+  legalLink: {
+    fontSize: theme.typography.xs,
+    color: theme.colors.orange,
+    fontFamily: theme.typography.fontFamily,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    fontSize: theme.typography.xs,
+    color: theme.colors.textMuted,
+    fontFamily: theme.typography.fontFamily,
   },
 });

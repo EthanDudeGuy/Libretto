@@ -57,7 +57,7 @@ class BookData(BaseModel):
     author: str
     currentPage: Optional[int] = 1
     totalPages: Optional[int] = None
-    progress: Optional[int] = 0
+    progress: Optional[float] = 0
     publishedDate: Optional[str] = None
     categories: Optional[List[str]] = []
     description: Optional[str] = "No description available."
@@ -191,7 +191,7 @@ async def chat_with_book(request: ChatRequest):
         
         # Call Claude API
         response = client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5",
             max_tokens=1000,
             system=system_prompt,
             messages=messages
@@ -285,9 +285,9 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting Book Agent Backend Server...")
-    print("📡 API will be available at: http://localhost:8000")
-    print("📚 Chat endpoint: http://localhost:8000/api/chat")
-    print("📖 Summary endpoint: http://localhost:8000/api/summary")
+    print("📡 API will be available at: http://localhost:8001")
+    print("📚 Chat endpoint: http://localhost:8001/api/chat")
+    print("📖 Summary endpoint: http://localhost:8001/api/summary")
     
     if client:
         print("🤖 Claude API is configured and ready!")

@@ -12,6 +12,7 @@ import {
   Image,
   PanResponder,
   Modal,
+  Dimensions,
 } from 'react-native';
 import theme from '../constants/theme';
 import { updateBook, calculateProgress } from '../utils/BookStorage';
@@ -23,6 +24,9 @@ import { deleteBook as deleteBookFromStorage } from '../utils/BookStorage';
 import { handleAPIError, logError } from '../utils/ErrorHandler';
 import ImageColors from 'react-native-image-colors';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const { height: WINDOW_HEIGHT } = Dimensions.get('window');
+const BANNER_HEIGHT = Math.max(160, WINDOW_HEIGHT * 0.2);
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -593,30 +597,29 @@ export default function BookChat({ book, onBack }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[
-          backgroundColor + 'DD',
-          backgroundColor + '88',
-          theme.colors.surface + 'EE',
-        ]}
-        style={StyleSheet.absoluteFillObject}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      />
+      {/* Banner: book-cover color, confined to a strip at the top of the screen */}
+      <View style={styles.banner} pointerEvents='none'>
+        <LinearGradient
+          colors={[backgroundColor, backgroundColor + 'CC', theme.colors.background]}
+          style={StyleSheet.absoluteFillObject}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        />
+      </View>
+
       <Animated.View
         style={[
-          styles.container,
+          styles.pageContent,
           {
-            backgroundColor: 'transparent',
             opacity: pageFadeAnim,
           },
         ]}
       >
         <KeyboardAvoidingView
-          style={styles.container}
+          style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-        {/* Header Section with Back Button and Progress Bar */}
+        {/* Header Section with Back Button and Progress Bar — always visible, sits on the banner */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity
@@ -1016,8 +1019,22 @@ export default function BookChat({ book, onBack }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  banner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: BANNER_HEIGHT,
+  },
+  pageContent: {
+    flex: 1,
     paddingLeft: 22,
     paddingRight: 22,
+  },
+  keyboardView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -1094,13 +1111,14 @@ const styles = StyleSheet.create({
   // Left Column Styles
   leftColumn: {
     width: 200,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'transparent',
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   bookCoverContainer: {
     alignItems: 'center',
     marginBottom: 12,
+    boxShadow: '0px 8px 20px rgba(0, 0, 0, 0.35)',
   },
   bookInfoContainer: {
     backgroundColor: theme.colors.surfaceElevated,

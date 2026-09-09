@@ -12,16 +12,18 @@ import theme from './src/constants/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import LibraryHomepage from './src/screens/LibraryHomepage';
 import BookChat from './src/screens/BookChat';
+import SettingsScreen from './src/screens/SettingsScreen';
+import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState('homepage');
   const [selectedBook, setSelectedBook] = useState(null);
-  const [authView, setAuthView] = useState('login');
+  const [pendingAddBook, setPendingAddBook] = useState(null);
+  const [authView, setAuthView] = useState('landing');
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  // Debug logging
   console.log(
     'AppContent render - isAuthenticated:',
     isAuthenticated,
@@ -41,6 +43,16 @@ function AppContent() {
     setSelectedBook(null);
   };
 
+  const navigateToSettings = () => {
+    setCurrentView('settings');
+    setSelectedBook(null);
+  };
+
+  const handleSelectBookFromSettings = book => {
+    setPendingAddBook(book);
+    setCurrentView('homepage');
+  };
+
   const navigateToLogin = () => {
     setAuthView('login');
   };
@@ -49,7 +61,6 @@ function AppContent() {
     setAuthView('register');
   };
 
-  // Show loading screen while checking authentication
   if (isLoading) {
     return (
       <SafeAreaView
@@ -64,13 +75,17 @@ function AppContent() {
     );
   }
 
-  // Show authentication screens if not authenticated
   if (!isAuthenticated) {
     return (
       <SafeAreaView
         style={{ flex: 1, backgroundColor: theme.colors.background }}
       >
-        {authView === 'login' ? (
+        {authView === 'landing' ? (
+          <LandingScreen
+            onGetStarted={navigateToRegister}
+            onLogin={navigateToLogin}
+          />
+        ) : authView === 'login' ? (
           <LoginScreen onNavigateToRegister={navigateToRegister} />
         ) : (
           <RegisterScreen onNavigateToLogin={navigateToLogin} />
@@ -80,11 +95,22 @@ function AppContent() {
     );
   }
 
-  // Show main app if authenticated
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       {currentView === 'homepage' ? (
-        <LibraryHomepage onNavigateToChat={navigateToChat} />
+        <LibraryHomepage
+          onNavigateToChat={navigateToChat}
+          onNavigateToSettings={navigateToSettings}
+          onNavigateHome={navigateToHomepage}
+          pendingAddBook={pendingAddBook}
+          onConsumePendingAddBook={() => setPendingAddBook(null)}
+        />
+      ) : currentView === 'settings' ? (
+        <SettingsScreen
+          onNavigateHome={navigateToHomepage}
+          onNavigateSettings={navigateToSettings}
+          onSelectBook={handleSelectBookFromSettings}
+        />
       ) : (
         <BookChat book={selectedBook} onBack={navigateToHomepage} />
       )}
