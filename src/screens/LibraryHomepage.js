@@ -299,20 +299,21 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    minHeight: '100%',
     backgroundColor: theme.colors.background,
   },
   header: {
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,
-    paddingTop: 55,
+    paddingTop: 48,
     paddingBottom: 18,
+    backgroundColor: theme.colors.background,
+    zIndex: 10,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 22,
+    paddingHorizontal: 18,
     maxWidth: 1200,
     alignSelf: 'center',
     width: '100%',
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
-    paddingVertical: 26,
+    paddingVertical: 6,
   },
   contentContainer: {
     paddingHorizontal: 22,
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderTopWidth: 1,
     borderTopColor: theme.colors.borderSubtle,
-    paddingVertical: 12,
+    paddingVertical: 6,
   },
   footerContent: {
     paddingHorizontal: 16,

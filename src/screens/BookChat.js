@@ -11,6 +11,7 @@ import {
   Animated,
   Image,
   PanResponder,
+  Modal,
 } from 'react-native';
 import theme from '../constants/theme';
 import { updateBook, calculateProgress } from '../utils/BookStorage';
@@ -20,6 +21,8 @@ import { sendMessageToClaude } from '../services/ClaudeAPI';
 import { useAuth } from '../context/AuthContext';
 import { deleteBook as deleteBookFromStorage } from '../utils/BookStorage';
 import { handleAPIError, logError } from '../utils/ErrorHandler';
+import ImageColors from 'react-native-image-colors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function BookChat({ book, onBack }) {
   const [messages, setMessages] = useState([]);
@@ -28,8 +31,10 @@ export default function BookChat({ book, onBack }) {
   const [draggedLineIndex, setDraggedLineIndex] = useState(null);
   const [currentBook, setCurrentBook] = useState(book);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
   const [isWelcomeTyping, setIsWelcomeTyping] = useState(false);
   const [welcomeMessageText, setWelcomeMessageText] = useState('');
+  const [backgroundColor, setBackgroundColor] = useState(theme.colors.surface);
   const scrollViewRef = useRef();
   const { user } = useAuth();
 
@@ -137,6 +142,39 @@ export default function BookChat({ book, onBack }) {
   useEffect(() => {
     setCurrentBook(book);
   }, [book]);
+
+  useEffect(() => {
+    const extractColors = async () => {
+      if (currentBook.thumbnail) {
+        try {
+          const result = await ImageColors.getColors(currentBook.thumbnail, {
+            fallback: theme.colors.surface,
+            cache: true,
+            key: currentBook.id,
+          });
+
+          let dominantColor = theme.colors.surface;
+
+          if (result.platform === 'ios') {
+            dominantColor = result.background || result.primary || theme.colors.surface;
+          } else if (result.platform === 'android') {
+            dominantColor = result.dominant || result.vibrant || theme.colors.surface;
+          } else if (result.platform === 'web') {
+            dominantColor = result.dominant || result.vibrant || theme.colors.surface;
+          }
+
+          setBackgroundColor(dominantColor);
+        } catch (error) {
+          console.log('Error extracting colors:', error);
+          setBackgroundColor(theme.colors.surface);
+        }
+      } else {
+        setBackgroundColor(theme.colors.surface);
+      }
+    };
+
+    extractColors();
+  }, [currentBook.id, currentBook.thumbnail]);
 
   // Page fade-in animation when component mounts
   useEffect(() => {
@@ -554,19 +592,30 @@ export default function BookChat({ book, onBack }) {
   );
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          backgroundColor: theme.colors.surface,
-          opacity: pageFadeAnim,
-        },
-      ]}
-    >
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[
+          backgroundColor + 'DD',
+          backgroundColor + '88',
+          theme.colors.surface + 'EE',
+        ]}
+        style={StyleSheet.absoluteFillObject}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      <Animated.View
+        style={[
+          styles.container,
+          {
+            backgroundColor: 'transparent',
+            opacity: pageFadeAnim,
+          },
+        ]}
       >
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         {/* Header Section with Back Button and Progress Bar */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -819,9 +868,41 @@ export default function BookChat({ book, onBack }) {
                 </View>
 
                 <View style={styles.directoryIconContainer}>
-                  <TouchableOpacity style={styles.directoryIcon}>
-                    <Text style={styles.directoryIconText}>☰</Text>
+                  <TouchableOpacity
+                    style={styles.directoryIcon}
+                    onPress={() => setShowActionMenu(!showActionMenu)}
+                  >
+                    <Text style={styles.directoryIconText}>⋮</Text>
                   </TouchableOpacity>
+
+                  {/* Action Menu Modal */}
+                  <Modal
+                    visible={showActionMenu}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setShowActionMenu(false)}
+                  >
+                    <TouchableOpacity
+                      style={styles.actionMenuBackdrop}
+                      activeOpacity={1}
+                      onPress={() => setShowActionMenu(false)}
+                    >
+                      <View style={styles.actionMenuWrapper}>
+                        <View style={styles.actionMenuContainer}>
+                          <TouchableOpacity
+                            style={styles.actionMenuItem}
+                            onPress={() => {
+                              setShowActionMenu(false);
+                              handleDeleteBook();
+                            }}
+                          >
+                            <Text style={styles.actionMenuIcon}>🗑️</Text>
+                            <Text style={styles.actionMenuText}>Delete Book</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  </Modal>
                 </View>
               </View>
             </View>
@@ -920,15 +1001,6 @@ export default function BookChat({ book, onBack }) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Floating Delete Button - Bottom Left Panel */}
-      <TouchableOpacity
-        style={styles.floatingDeleteButton}
-        onPress={handleDeleteBook}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.floatingDeleteButtonText}>🗑️</Text>
-      </TouchableOpacity>
-
       {/* Delete Book Modal */}
       <DeleteBookModal
         visible={showDeleteModal}
@@ -936,7 +1008,8 @@ export default function BookChat({ book, onBack }) {
         onConfirm={confirmDelete}
         book={currentBook}
       />
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -1053,7 +1126,7 @@ const styles = StyleSheet.create({
   infoTitleUnderline: {
     width: 40,
     height: 3,
-    backgroundColor: theme.colors.orange,
+    backgroundColor: theme.colors.blue,
     borderRadius: 2,
   },
   infoContent: {
@@ -1132,6 +1205,40 @@ const styles = StyleSheet.create({
   },
   directoryIconContainer: {
     alignItems: 'flex-end',
+    position: 'relative',
+  },
+  actionMenuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  actionMenuWrapper: {
+    position: 'absolute',
+    top: 120,
+    right: 40,
+  },
+  actionMenuContainer: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
+    elevation: 8,
+    minWidth: 160,
+  },
+  actionMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  actionMenuIcon: {
+    fontSize: 18,
+  },
+  actionMenuText: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
   },
   progressContainer: {
     alignItems: 'center',
@@ -1260,7 +1367,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
   },
   userText: {
-    color: '#fff',
+    color: theme.colors.textPrimary,
   },
   aiText: {
     color: theme.colors.textSecondary,
@@ -1287,7 +1394,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.textMuted,
   },
   typingCursor: {
-    color: theme.colors.orange,
+    color: theme.colors.blue,
     fontSize: 16,
     fontWeight: 'bold',
     opacity: 1,
@@ -1317,7 +1424,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   sendButton: {
-    backgroundColor: theme.colors.orange,
+    backgroundColor: theme.colors.blue,
     width: 54,
     height: 54,
     borderRadius: 12,
@@ -1325,32 +1432,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: theme.colors.accentMuted,
+    backgroundColor: 'rgba(66, 133, 244, 0.4)',
   },
   sendButtonText: {
     color: '#fff',
     fontSize: 20,
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
-  },
-  floatingDeleteButton: {
-    position: 'absolute',
-    bottom: 22, // Aligned with container padding
-    left: 22, // Aligned with container paddingLeft
-    width: 56,
-    height: 56,
-    borderRadius: theme.radii.md, // Square with rounded corners to match app style
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    justifyContent: 'center',
-    alignItems: 'center',
-    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.25)',
-    elevation: 6,
-    zIndex: 1000, // Ensure it stays above other elements
-  },
-  floatingDeleteButtonText: {
-    fontSize: 20,
-    textAlign: 'center',
   },
 });

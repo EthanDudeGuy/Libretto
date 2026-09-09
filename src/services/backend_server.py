@@ -10,6 +10,9 @@ from typing import List, Dict, Optional
 import anthropic
 import os
 import uuid
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Initialize FastAPI
 app = FastAPI(title="Book Agent API", version="1.0.0")
@@ -23,10 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get API key from environment variable or hardcode it here
-# Option 1: Set environment variable: export ANTHROPIC_API_KEY=your_key_here
-# Option 2: Replace 'your_api_key_here' below with your actual Claude API key
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY") or "your_api_key_here"
+# Get API key from .env file
+# To configure:
+# 1. Copy .env.example to .env: cp .env.example .env
+# 2. Edit .env and add your actual API key
+# 3. Get your key from: https://console.anthropic.com/
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 # Initialize Anthropic client only if API key is available and not placeholder
 client = None
@@ -289,9 +294,9 @@ if __name__ == "__main__":
     else:
         print("⚠️  Claude API key not configured - chat features will be disabled")
         print("   To fix this:")
-        print("   1. Get your API key from: https://console.anthropic.com/")
-        print("   2. Either:")
-        print("      - Set environment variable: export ANTHROPIC_API_KEY=your_key_here")
-        print("      - Or edit line 29 in this file and replace 'your_api_key_here' with your actual key")
+        print("   1. Copy .env.example to .env in the project root")
+        print("   2. Edit .env and add your API key")
+        print("   3. Get your API key from: https://console.anthropic.com/")
+        print("   4. Restart this server")
     
     uvicorn.run(app, host="0.0.0.0", port=8001)
