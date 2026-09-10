@@ -16,6 +16,7 @@ import theme from '../constants/theme';
 import Bookshelf from '../components/Bookshelf';
 import AppHeader from '../components/AppHeader';
 import { loadBooks, addBook } from '../utils/BookStorage';
+import { useAuth } from '../context/AuthContext';
 
 export default function Homepage({
   onNavigateToChat,
@@ -24,6 +25,7 @@ export default function Homepage({
   pendingAddBook,
   onConsumePendingAddBook,
 }) {
+  const { user } = useAuth();
   const [books, setBooks] = useState([]);
   const [pendingBook, setPendingBook] = useState(null);
   const [pageChapter, setPageChapter] = useState('');
@@ -32,8 +34,10 @@ export default function Homepage({
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    loadBooksFromStorage();
-  }, []);
+    if (user?.id) {
+      loadBooksFromStorage();
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (pendingAddBook) {
@@ -45,7 +49,7 @@ export default function Homepage({
 
   const loadBooksFromStorage = async () => {
     try {
-      const storedBooks = await loadBooks();
+      const storedBooks = await loadBooks(user.id);
       setBooks(storedBooks);
     } catch (error) {
       console.error('Error loading books:', error);
@@ -122,7 +126,7 @@ export default function Homepage({
     };
 
     try {
-      const addedBook = await addBook(newBook);
+      const addedBook = await addBook(newBook, user.id);
       setBooks(prevBooks => [addedBook, ...prevBooks]);
       closeProgressModal();
       animateToChat(addedBook);

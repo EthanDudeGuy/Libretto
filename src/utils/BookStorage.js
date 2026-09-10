@@ -1,101 +1,105 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { BACKEND_BASE_URL } from '../services/backendConfig';
 
-const BOOKS_STORAGE_KEY = '@libretto_books';
+const BOOKS_ENDPOINT = `${BACKEND_BASE_URL}/api/books`;
 
-// Helper function to calculate progress percentage
+// Helper function to calculate progress percentage. Still used client-side
+// for optimistic UI before the server's own (authoritative) value comes back.
 export const calculateProgress = (currentPage, totalPages) => {
   if (!totalPages || totalPages <= 0) return 0;
   return Math.round((currentPage / totalPages) * 100);
 };
 
-// Save books to storage
-export const saveBooks = async books => {
+const assertOk = async response => {
+  if (response.ok) return;
+  let detail = '';
   try {
-    const jsonValue = JSON.stringify(books);
-    if (Platform.OS === 'web') {
-      localStorage.setItem(BOOKS_STORAGE_KEY, jsonValue);
-    } else {
-      await AsyncStorage.setItem(BOOKS_STORAGE_KEY, jsonValue);
-    }
-  } catch (error) {
-    console.error('Error saving books:', error);
+    const body = await response.json();
+    detail = body.detail || '';
+  } catch (e) {
+    // response wasn't JSON — fine, just report the status.
   }
+  throw new Error(`Backend API error: ${response.status}${detail ? ` - ${detail}` : ''}`);
 };
 
-// Load books from storage
-export const loadBooks = async () => {
+// Load all books belonging to a user.
+export const loadBooks = async userId => {
   try {
-    let jsonValue;
-    if (Platform.OS === 'web') {
-      jsonValue = localStorage.getItem(BOOKS_STORAGE_KEY);
-    } else {
-      jsonValue = await AsyncStorage.getItem(BOOKS_STORAGE_KEY);
-    }
-    return jsonValue != null ? JSON.parse(jsonValue) : [];
+    const response = await fetch(
+      `${BOOKS_ENDPOINT}?user_id=${encodeURIComponent(userId)}`
+    );
+    await assertOk(response);
+    const data = await response.json();
+    return data.books || [];
   } catch (error) {
     console.error('Error loading books:', error);
     return [];
   }
 };
 
-// Add a new book to storage
-export const addBook = async newBook => {
+// Add a new book to a user's library.
+export const addBook = async (newBook, userId) => {
   try {
-    const existingBooks = await loadBooks();
-    const bookWithId = {
-      ...newBook,
-      id: Date.now().toString(), // Simple ID generation
-      // Progress is already calculated in the modal, but ensure it's valid
-      progress:
-        newBook.progress ||
-        Math.round((newBook.currentPage / newBook.totalPages) * 100),
-    };
-    const updatedBooks = [bookWithId, ...existingBooks]; // Add new book to the beginning for top-left positioning
-    await saveBooks(updatedBooks);
-    return bookWithId;
+    const response = await fetch(BOOKS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, book: newBook }),
+    });
+    await assertOk(response);
+    return await response.json();
   } catch (error) {
     console.error('Error adding book:', error);
     throw error;
   }
 };
 
-// Update an existing book
+// Update an existing book. Returns the updated book — progress and
+// finishedAt are recomputed server-side (same rules as before: finishedAt
+// auto-stamps at 100% progress and clears if progress drops back below it).
 export const updateBook = async (bookId, updates) => {
   try {
-    const existingBooks = await loadBooks();
-    const updatedBooks = existingBooks.map(book => {
-      if (book.id === bookId) {
-        const updatedBook = { ...book, ...updates };
-
-        // Recalculate progress if currentPage was updated
-        if (updates.currentPage !== undefined) {
-          updatedBook.progress = Math.round(
-            (updates.currentPage / book.totalPages) * 100
-          );
-        }
-
-        return updatedBook;
-      }
-      return book;
+    const response = await fetch(`${BOOKS_ENDPOINT}/${bookId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates }),
     });
-    await saveBooks(updatedBooks);
-    return updatedBooks;
+    await assertOk(response);
+    return await response.json();
   } catch (error) {
     console.error('Error updating book:', error);
     throw error;
   }
 };
 
-// Delete a book from storage
-export const deleteBook = async bookId => {
+// Load a book's chat history, oldest first.
+export const loadMessages = async bookId => {
   try {
-    const existingBooks = await loadBooks();
-    const updatedBooks = existingBooks.filter(book => book.id !== bookId);
-    await saveBooks(updatedBooks);
-    return updatedBooks;
+    const response = await fetch(`${BOOKS_ENDPOINT}/${bookId}/messages`);
+    await assertOk(response);
+    const data = await response.json();
+    return data.messages || [];
   } catch (error) {
-    console.error('Error deleting book:', error);
+    console.error('Error loading messages:', error);
+    return [];
+  }
+};
+
+// Persist one chat message (user or assistant) against a book.
+export const saveMessage = async (bookId, userId, message) => {
+  try {
+    const response = await fetch(`${BOOKS_ENDPOINT}/${bookId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        text: message.text,
+        isUser: !!message.isUser,
+        isError: !!message.isError,
+      }),
+    });
+    await assertOk(response);
+    return await response.json();
+  } catch (error) {
+    console.error('Error saving message:', error);
     throw error;
   }
 };

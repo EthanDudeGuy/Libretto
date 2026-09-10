@@ -1,0 +1,7 @@
+# Backend dependencies for src/services/backend_server.py
+fastapi==0.118.0
+uvicorn==0.37.0
+anthropic==0.69.0
+python-dotenv==1.1.1
+pydantic==2.11.9
+sqlalchemy==2.0.52

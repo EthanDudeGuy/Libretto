@@ -120,3 +120,9 @@ pids/
 # Temporary folders
 tmp/
 temp/
+
+# Backend (Python) — local SQLite database and bytecode cache
+*.db
+*.db-journal
+__pycache__/
+*.pyc

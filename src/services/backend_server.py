@@ -3,21 +3,29 @@ Book Discussion Agent Backend Server
 Handles CORS and proxies requests to Claude API
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+from sqlalchemy.orm import Session
 import anthropic
 import json
 import os
 import re
-import uuid
 from dotenv import load_dotenv
+
+from database import Base, engine, get_db
+import db_models
 
 load_dotenv()
 
 # Initialize FastAPI
 app = FastAPI(title="Book Agent API", version="1.0.0")
+
+# Creates tables on first run; no-ops if they already exist. Fine for
+# SQLite/dev — a real Postgres deployment would use proper migrations
+# (e.g. Alembic) instead of this, but this keeps local setup to zero steps.
+Base.metadata.create_all(bind=engine)
 
 # CRITICAL: Enable CORS - This is what fixes the browser error
 app.add_middleware(
@@ -46,12 +54,6 @@ if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != "your_api_key_here":
         client = None
 else:
     print("⚠️  Claude API key not configured. Please set ANTHROPIC_API_KEY environment variable or update the code.")
-
-# In-memory session storage (use Redis/database in production)
-sessions = {}
-
-# Session history storage for tracking last session summaries
-session_history = {}
 
 # Request/Response Models
 class BookData(BaseModel):
@@ -82,25 +84,6 @@ class ChatResponse(BaseModel):
     success: bool
     error: Optional[str] = None
 
-class SummaryRequest(BaseModel):
-    session_id: str
-    book_data: BookData
-    user: Optional[UserData] = None
-
-class SummaryResponse(BaseModel):
-    summary: str
-    session_id: str
-    success: bool
-
-class SaveSessionRequest(BaseModel):
-    session_id: str
-    book_data: BookData
-    conversation_summary: str
-
-class SaveSessionResponse(BaseModel):
-    success: bool
-    message: str
-
 class CommunityRequest(BaseModel):
     book_data: BookData
 
@@ -123,39 +106,79 @@ class CommunityResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
 
+# Known camelCase fields on the frontend's book object, mapped to the
+# matching snake_case column on the Book model. Anything the client sends
+# that isn't in this map still gets saved (into `extra`), never dropped.
+BOOK_FIELD_MAP = {
+    "title": "title",
+    "author": "author",
+    "currentPage": "current_page",
+    "totalPages": "total_pages",
+    "progress": "progress",
+    "pageChapter": "page_chapter",
+    "chapter": "chapter",
+    "thumbnail": "thumbnail",
+    "description": "description",
+    "publishedDate": "published_date",
+    "isbn": "isbn",
+    "categories": "categories",
+    "publisher": "publisher",
+    "language": "language",
+    "averageRating": "average_rating",
+    "pageCount": "page_count",
+    "googleBooksId": "google_books_id",
+    "startedAt": "started_at",
+    "finishedAt": "finished_at",
+    "status": "status",
+    "rating": "rating",
+}
+
+class CreateBookRequest(BaseModel):
+    user_id: str
+    book: Dict[str, Any]
+
+class UpdateBookRequest(BaseModel):
+    updates: Dict[str, Any]
+
+class CreateMessageRequest(BaseModel):
+    user_id: str
+    text: str
+    isUser: bool
+    isError: Optional[bool] = False
+
+def book_to_dict(book: db_models.Book) -> Dict[str, Any]:
+    """Serialize a Book row back into the camelCase shape the frontend expects."""
+    result = dict(book.extra or {})
+    for camel, snake in BOOK_FIELD_MAP.items():
+        result[camel] = getattr(book, snake)
+    result["id"] = book.id
+    result["createdAt"] = book.created_at
+    result["updatedAt"] = book.updated_at
+    return result
+
+def apply_book_fields(book: db_models.Book, fields: Dict[str, Any]) -> None:
+    """Write incoming camelCase fields onto a Book row, unknown ones into `extra`."""
+    extra = dict(book.extra or {})
+    for key, value in fields.items():
+        if key in BOOK_FIELD_MAP:
+            setattr(book, BOOK_FIELD_MAP[key], value)
+        elif key not in ("id", "createdAt", "updatedAt"):
+            extra[key] = value
+    book.extra = extra
+
+def message_to_dict(message: db_models.Message) -> Dict[str, Any]:
+    return {
+        "id": message.id,
+        "text": message.text,
+        "isUser": message.is_user,
+        "isError": message.is_error,
+        "timestamp": message.created_at,
+    }
+
 # Helper functions
 def get_session_key(book_data: BookData) -> str:
     """Generate a unique key for book sessions"""
     return f"{book_data.title}_{book_data.author}"
-
-def generate_session_summary(conversation_history: List[Dict]) -> str:
-    """Generate a brief 1-2 sentence summary of the conversation"""
-    if not conversation_history:
-        return "No previous conversation found."
-    
-    # Extract key topics from the conversation
-    user_messages = [msg.get("text", "") for msg in conversation_history if msg.get("isUser", False)]
-    ai_messages = [msg.get("text", "") for msg in conversation_history if not msg.get("isUser", False)]
-    
-    # Simple keyword extraction for topics discussed
-    topics = []
-    for msg in user_messages[-5:]:  # Last 5 user messages
-        if any(word in msg.lower() for word in ["character", "plot", "theme", "chapter", "page"]):
-            if "character" in msg.lower():
-                topics.append("characters")
-            if "plot" in msg.lower():
-                topics.append("plot")
-            if "theme" in msg.lower():
-                topics.append("themes")
-    
-    if topics:
-        unique_topics = list(set(topics))
-        if len(unique_topics) == 1:
-            return f"Last time we discussed {unique_topics[0]}."
-        else:
-            return f"Last time we discussed {', '.join(unique_topics[:-1])} and {unique_topics[-1]}."
-    else:
-        return "Last time we had a general discussion about the book."
 
 def create_system_prompt(book_data: BookData, user_data: Optional[UserData] = None) -> str:
     """Generate a system prompt that gives Waddle a consistent, book-aware personality."""
@@ -558,68 +581,88 @@ async def get_community_resources(request: CommunityRequest):
             error="unknown_error",
         )
 
-@app.post("/api/save-session", response_model=SaveSessionResponse)
-async def save_session_summary(request: SaveSessionRequest):
-    """Save a session summary for future reference"""
-    try:
-        session_key = get_session_key(request.book_data)
-        session_history[session_key] = {
-            "book_data": request.book_data,
-            "conversation_summary": request.conversation_summary,
-            "timestamp": "now"  # In production, use actual timestamp
-        }
-        
-        return SaveSessionResponse(
-            success=True,
-            message="Session summary saved successfully"
-        )
-        
-    except Exception as e:
-        print(f"Error saving session: {e}")
-        return SaveSessionResponse(
-            success=False,
-            message=f"Error saving session: {str(e)}"
-        )
+@app.get("/api/books")
+async def list_books(user_id: str, db: Session = Depends(get_db)):
+    """List all books for a user, most recently added first."""
+    books = (
+        db.query(db_models.Book)
+        .filter(db_models.Book.user_id == user_id)
+        .order_by(db_models.Book.created_at.desc())
+        .all()
+    )
+    return {"books": [book_to_dict(b) for b in books]}
 
-@app.post("/api/summary", response_model=SummaryResponse)
-async def generate_summary(request: SummaryRequest):
-    """Generate a personalized book summary"""
-    try:
-        book_data = request.book_data
-        user_data = request.user
-        session_key = get_session_key(book_data)
-        user_name = user_data.firstName if user_data and user_data.firstName else "there"
-        
-        # Generate a simple 3-sentence template-based summary
-        if book_data.progress == 0:
-            # First time opening the book
-            summary = f"Welcome to \"{book_data.title}\", {user_name}! Any questions before we get started?"
+@app.post("/api/books")
+async def create_book(request: CreateBookRequest, db: Session = Depends(get_db)):
+    """Add a book to a user's library."""
+    book = db_models.Book(user_id=request.user_id)
+    apply_book_fields(book, request.book)
+    if not book.title:
+        raise HTTPException(status_code=400, detail="title is required")
+
+    if book.total_pages:
+        book.progress = round((book.current_page or 1) / book.total_pages * 100)
+    if book.progress and book.progress >= 100:
+        book.finished_at = book.finished_at or db_models.now_iso()
+
+    db.add(book)
+    db.commit()
+    db.refresh(book)
+    return book_to_dict(book)
+
+@app.patch("/api/books/{book_id}")
+async def update_book(book_id: str, request: UpdateBookRequest, db: Session = Depends(get_db)):
+    """Partially update a book — same semantics as the old BookStorage.updateBook."""
+    book = db.query(db_models.Book).filter(db_models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    apply_book_fields(book, request.updates)
+
+    if "currentPage" in request.updates and book.total_pages:
+        book.progress = round(book.current_page / book.total_pages * 100)
+
+    # Mirrors the old applyFinishedAt: stamp/clear finishedAt based on progress,
+    # unless the caller explicitly set finishedAt/status themselves this call.
+    if "finishedAt" not in request.updates:
+        if (book.progress or 0) >= 100:
+            book.finished_at = book.finished_at or db_models.now_iso()
         else:
-            # Returning to the book - check for last session context
-            if session_key in session_history:
-                last_session = session_history[session_key]
-                last_summary = last_session.get("conversation_summary", "")
-                
-                if last_summary and last_summary != "No previous conversation found.":
-                    summary = f"Welcome back to \"{book_data.title}\", {user_name}! {last_summary} What would you like to discuss today?"
-                else:
-                    summary = f"Welcome back to \"{book_data.title}\", {user_name}! What would you like to discuss?"
-            else:
-                summary = f"Welcome back to \"{book_data.title}\", {user_name}! What would you like to discuss?"
-        
-        return SummaryResponse(
-            summary=summary,
-            session_id=request.session_id,
-            success=True
-        )
-        
-    except Exception as e:
-        print(f"Error in summary endpoint: {e}")
-        return SummaryResponse(
-            summary=f"Welcome to \"{book_data.title}\"! I'm having trouble generating a summary right now, but feel free to ask me anything about the book.",
-            session_id=request.session_id,
-            success=True  # Return success=True but with fallback message
-        )
+            book.finished_at = None
+
+    db.commit()
+    db.refresh(book)
+    return book_to_dict(book)
+
+@app.get("/api/books/{book_id}/messages")
+async def list_messages(book_id: str, db: Session = Depends(get_db)):
+    """List a book's chat history, oldest first."""
+    messages = (
+        db.query(db_models.Message)
+        .filter(db_models.Message.book_id == book_id)
+        .order_by(db_models.Message.created_at.asc())
+        .all()
+    )
+    return {"messages": [message_to_dict(m) for m in messages]}
+
+@app.post("/api/books/{book_id}/messages")
+async def create_message(book_id: str, request: CreateMessageRequest, db: Session = Depends(get_db)):
+    """Append one message to a book's chat history."""
+    book = db.query(db_models.Book).filter(db_models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    message = db_models.Message(
+        book_id=book_id,
+        user_id=request.user_id,
+        text=request.text,
+        is_user=request.isUser,
+        is_error=request.isError or False,
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message_to_dict(message)
 
 @app.get("/api/health")
 async def health_check():

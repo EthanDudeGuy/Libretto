@@ -3,18 +3,10 @@
  * Provides consistent error handling across the application
  */
 
-export const ErrorTypes = {
-  NETWORK_ERROR: 'NETWORK_ERROR',
-  API_ERROR: 'API_ERROR',
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
-  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
-};
-
 export const ErrorMessages = {
   NETWORK_ERROR: 'Please check your internet connection and try again.',
   API_ERROR:
     "I'm having trouble connecting to the AI service. Please try again in a moment.",
-  VALIDATION_ERROR: 'Please check your input and try again.',
   UNKNOWN_ERROR: 'Something went wrong. Please try again.',
 };
 
@@ -111,36 +103,6 @@ export const handleClaudeResponse = (
     success: false,
     message: fallbackMessage,
     error: 'Unexpected response format',
-  };
-};
-
-/**
- * Validates API response format
- * @param {Object} data - Response data to validate
- * @param {Array} requiredFields - Required fields in the response
- * @returns {boolean} Whether the response is valid
- */
-export const validateAPIResponse = (data, requiredFields = ['success']) => {
-  if (!data || typeof data !== 'object') {
-    return false;
-  }
-
-  return requiredFields.every(field => data.hasOwnProperty(field));
-};
-
-/**
- * Creates a standardized error object
- * @param {string} type - Error type from ErrorTypes
- * @param {string} message - Error message
- * @param {Object} details - Additional error details
- * @returns {Object} Standardized error object
- */
-export const createError = (type, message, details = {}) => {
-  return {
-    type,
-    message,
-    details,
-    timestamp: new Date().toISOString(),
   };
 };
 

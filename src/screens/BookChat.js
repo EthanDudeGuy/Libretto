@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import theme from '../constants/theme';
+import { updateBook, calculateProgress, loadMessages, saveMessage } from '../utils/BookStorage';
 import SimpleBookImage from '../components/SimpleBookImage';
 import AppHeader from '../components/AppHeader';
 import { sendMessageToClaude, getCommunityResources } from '../services/ClaudeAPI';
@@ -46,11 +47,20 @@ const TAB_PLACEHOLDER_COPY = {
     title: 'Information',
     body: 'Extended details about this book will show up here.',
   },
-  history: {
-    title: 'History',
-    body: 'Your reading activity and past sessions will show up here.',
-  },
 };
+
+// Reading status: a manually-set shelf, independent of page tracking. A
+// freshly added book has no status until the reader picks one — it isn't
+// implied by having a current page.
+const STATUS_OPTIONS = [
+  { value: null, key: 'none', label: 'No status' },
+  { value: 'want_to_read', key: 'want_to_read', label: 'Want to Read' },
+  { value: 'currently_reading', key: 'currently_reading', label: 'Currently Reading' },
+  { value: 'read', key: 'read', label: 'Read' },
+];
+
+const getStatusOption = status =>
+  STATUS_OPTIONS.find(option => option.value === (status || null)) || STATUS_OPTIONS[0];
 
 // Community tab: category and spoiler-level display metadata. The actual
 // sources come from the backend's /api/community endpoint (real web search
@@ -84,6 +94,46 @@ function groupCommunitySources(sources) {
     .filter(group => group.items.length > 0);
 }
 
+const formatTrackingDate = isoString => {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+// Types out `text` one character at a time (used for the welcome message).
+// Module-scope hook, not a component: it only depends on its own params.
+function useTypingAnimation(text, speed = 30) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [isComplete, setIsComplete] = useState(false);
+
+  useEffect(() => {
+    if (!text) return;
+
+    let index = 0;
+    setDisplayedText('');
+    setIsComplete(false);
+
+    const interval = setInterval(() => {
+      if (index < text.length) {
+        setDisplayedText(text.slice(0, index + 1));
+        index++;
+      } else {
+        setIsComplete(true);
+        clearInterval(interval);
+      }
+    }, speed);
+
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return { displayedText, isComplete };
+}
+
 // Compact radial indicator used to merge "progress" and "reading time" into
 // one glanceable widget instead of two separate text rows.
 function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
@@ -93,7 +143,7 @@ function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
   const dashOffset = circumference * (1 - clamped / 100);
 
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={[styles.progressRingContainer, { width: size, height: size }]}>
       <Svg width={size} height={size}>
         <Circle
           cx={size / 2}
@@ -117,16 +167,7 @@ function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
-      <Text
-        style={{
-          position: 'absolute',
-          fontSize: 12,
-          fontFamily: 'Inter_600SemiBold',
-          color: theme.colors.textPrimary,
-        }}
-      >
-        {Math.round(clamped)}%
-      </Text>
+      <Text style={styles.progressRingText}>{Math.round(clamped)}%</Text>
     </View>
   );
 }
@@ -147,6 +188,7 @@ export default function BookChat({
   const [welcomeMessageText, setWelcomeMessageText] = useState('');
   const [backgroundColor, setBackgroundColor] = useState(theme.colors.surface);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
   // status: 'idle' | 'loading' | 'success' | 'error'
   const [communityState, setCommunityState] = useState({
     status: 'idle',
@@ -154,6 +196,8 @@ export default function BookChat({
     error: null,
     bookId: null,
   });
+  const [pageInput, setPageInput] = useState(String(book.currentPage || 1));
+  const [pageUpdateStatus, setPageUpdateStatus] = useState('idle'); // idle | saving | error
   const scrollViewRef = useRef();
   const { user } = useAuth();
 
@@ -164,34 +208,6 @@ export default function BookChat({
   const dotsAnim2 = useRef(new Animated.Value(0)).current;
   const dotsAnim3 = useRef(new Animated.Value(0)).current;
   const cursorBlinkAnim = useRef(new Animated.Value(1)).current;
-
-  // Custom hook for typing animation
-  const useTypingAnimation = (text, speed = 30) => {
-    const [displayedText, setDisplayedText] = useState('');
-    const [isComplete, setIsComplete] = useState(false);
-
-    useEffect(() => {
-      if (!text) return;
-
-      let index = 0;
-      setDisplayedText('');
-      setIsComplete(false);
-
-      const interval = setInterval(() => {
-        if (index < text.length) {
-          setDisplayedText(text.slice(0, index + 1));
-          index++;
-        } else {
-          setIsComplete(true);
-          clearInterval(interval);
-        }
-      }, speed);
-
-      return () => clearInterval(interval);
-    }, [text, speed]);
-
-    return { displayedText, isComplete };
-  };
 
   // Short, plain opening line — no random one-liners, no name repetition.
   // This is client-generated (Claude never "said" it), so it's kept purely
@@ -212,7 +228,20 @@ export default function BookChat({
   // Update local book state when prop changes
   useEffect(() => {
     setCurrentBook(book);
+    setPageInput(String(book.currentPage || 1));
   }, [book]);
+
+  // Backfill startedAt for books added before reading-tracking existed, so
+  // the History tab always has a start date to show instead of "unknown."
+  useEffect(() => {
+    if (currentBook.startedAt) return;
+    const startedAt = new Date().toISOString();
+    setCurrentBook(prev => ({ ...prev, startedAt }));
+    updateBook(currentBook.id, { startedAt }).catch(error => {
+      logError(error, 'Backfilling startedAt');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBook.id]);
 
   useEffect(() => {
     const extractColors = async () => {
@@ -236,7 +265,7 @@ export default function BookChat({
 
           setBackgroundColor(dominantColor);
         } catch (error) {
-          console.log('Error extracting colors:', error);
+          logError(error, 'Extracting cover colors');
           setBackgroundColor(theme.colors.surface);
         }
       } else {
@@ -333,23 +362,45 @@ export default function BookChat({
     }
   }, [isTyping]);
 
-  // Add initial AI message when component mounts
+  // Load this book's chat history on mount (and whenever the reader switches
+  // to a different book — BookChat doesn't remount for that, just gets new
+  // props). Only show the synthetic typed "welcome" opener when there's no
+  // real history yet; once a book has an actual conversation, reopening it
+  // should show that conversation, not a fresh greeting on top of it.
   useEffect(() => {
-    const initialMessage = buildWelcomeMessage();
-    setWelcomeMessageText(initialMessage);
-    setIsWelcomeTyping(true);
-    
-    // Start with an empty welcome message that will be animated
-    setMessages([
-      {
-        id: '1',
-        text: '',
-        isUser: false,
-        timestamp: new Date(),
-        isWelcomeMessage: true,
-      },
-    ]);
-  }, []);
+    let cancelled = false;
+
+    const initializeMessages = async () => {
+      const history = await loadMessages(currentBook.id);
+      if (cancelled) return;
+
+      if (history.length > 0) {
+        setMessages(history);
+        return;
+      }
+
+      const initialMessage = buildWelcomeMessage();
+      setWelcomeMessageText(initialMessage);
+      setIsWelcomeTyping(true);
+
+      // Start with an empty welcome message that will be animated
+      setMessages([
+        {
+          id: 'welcome',
+          text: '',
+          isUser: false,
+          timestamp: new Date(),
+          isWelcomeMessage: true,
+        },
+      ]);
+    };
+
+    initializeMessages();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBook.id]);
 
   // Typing animation for welcome message
   const { displayedText, isComplete } = useTypingAnimation(welcomeMessageText, 40);
@@ -424,6 +475,13 @@ export default function BookChat({
     }
   };
 
+  // Fire-and-forget: a failed save shouldn't block the chat UI, just get logged.
+  const persistMessage = message => {
+    saveMessage(currentBook.id, user?.id, message).catch(error => {
+      logError(error, 'Saving message');
+    });
+  };
+
   const handleSendMessage = async () => {
     // Guards against duplicate sends: an empty box, and mashing enter/send
     // again while a request is already in flight.
@@ -437,6 +495,7 @@ export default function BookChat({
     };
 
     setMessages(prev => [...prev, userMessage]);
+    persistMessage(userMessage);
     const currentInput = inputText;
     setInputText('');
     setIsTyping(true);
@@ -453,10 +512,11 @@ export default function BookChat({
       };
 
       setMessages(prev => [...prev, aiResponse]);
+      persistMessage(aiResponse);
     } catch (error) {
       // generateAIResponse already catches its own errors, so this is a
       // last-resort net for something truly unexpected.
-      console.error('Error generating AI response:', error);
+      logError(error, 'AI Response Generation (outer)');
 
       const errorResponse = {
         id: (Date.now() + 1).toString(),
@@ -467,13 +527,52 @@ export default function BookChat({
       };
 
       setMessages(prev => [...prev, errorResponse]);
+      persistMessage(errorResponse);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const handleBack = () => {
-    onBack();
+  const handleSelectStatus = async statusValue => {
+    setShowStatusMenu(false);
+    try {
+      const updated = await updateBook(currentBook.id, { status: statusValue });
+      setCurrentBook(updated);
+    } catch (error) {
+      logError(error, 'Updating book status');
+    }
+  };
+
+  const handleSetRating = async rating => {
+    // Tapping the currently-set star again clears the rating.
+    const newRating = currentBook.rating === rating ? null : rating;
+    try {
+      const updated = await updateBook(currentBook.id, { rating: newRating });
+      setCurrentBook(updated);
+    } catch (error) {
+      logError(error, 'Updating book rating');
+    }
+  };
+
+  const handleUpdateCurrentPage = async () => {
+    const newPage = parseInt(pageInput, 10);
+    const totalPages = currentBook.totalPages;
+
+    if (!Number.isFinite(newPage) || newPage < 1 || (totalPages && newPage > totalPages)) {
+      setPageUpdateStatus('error');
+      return;
+    }
+
+    setPageUpdateStatus('saving');
+    try {
+      const updated = await updateBook(currentBook.id, { currentPage: newPage });
+      setCurrentBook(updated);
+      setPageInput(String(updated.currentPage));
+      setPageUpdateStatus('idle');
+    } catch (error) {
+      logError(error, 'Updating current page');
+      setPageUpdateStatus('error');
+    }
   };
 
   const loadCommunityResources = async () => {
@@ -596,7 +695,7 @@ export default function BookChat({
   const readingTimeLabel = (() => {
     if (!currentBook.totalPages) return 'Reading time unknown';
     const remainingPages = Math.max(currentBook.totalPages - (currentBook.currentPage || 0), 0);
-    if (remainingPages <= 0) return 'Finished';
+    if (remainingPages <= 0) return 'Done';
     return `~${Math.max(1, Math.ceil(remainingPages / 2))} min left`;
   })();
 
@@ -659,7 +758,7 @@ export default function BookChat({
           <View style={styles.topBarLeft}>
             <TouchableOpacity
               style={styles.backButtonModal}
-              onPress={handleBack}
+              onPress={onBack}
             >
               <Text style={styles.backButtonText}>← Library</Text>
             </TouchableOpacity>
@@ -687,6 +786,78 @@ export default function BookChat({
             {/* Book Cover using SimpleBookImage component */}
             <View style={styles.bookCoverContainer}>
               <SimpleBookImage book={currentBook} />
+            </View>
+
+            {/* Reading status + rating — a manually-set shelf, shown right
+                under the cover so it's the first thing you can act on. */}
+            <View style={styles.statusSection}>
+              <TouchableOpacity
+                style={styles.statusPill}
+                onPress={() => setShowStatusMenu(prev => !prev)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.statusDot,
+                    currentBook.status && styles.statusDotActive,
+                  ]}
+                />
+                <Text style={styles.statusPillText}>
+                  {getStatusOption(currentBook.status).label}
+                </Text>
+                <Text style={styles.statusChevron}>
+                  {showStatusMenu ? '︿' : '﹀'}
+                </Text>
+              </TouchableOpacity>
+
+              {showStatusMenu && (
+                <View style={styles.statusMenu}>
+                  {STATUS_OPTIONS.map(option => {
+                    const isActive = (currentBook.status || null) === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.key}
+                        style={styles.statusOption}
+                        onPress={() => handleSelectStatus(option.value)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.statusOptionText,
+                            isActive && styles.statusOptionTextActive,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        {isActive && <Text style={styles.statusCheck}>✓</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  <View style={styles.statusMenuDivider} />
+
+                  <Text style={styles.ratingLabel}>Your rating</Text>
+                  <View style={styles.starRow}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => handleSetRating(star)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                      >
+                        <Text
+                          style={[
+                            styles.star,
+                            star <= (currentBook.rating || 0) && styles.starFilled,
+                          ]}
+                        >
+                          ★
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Compact byline: Author / Published / Pages / Language as one
@@ -869,6 +1040,89 @@ export default function BookChat({
                   </ScrollView>
                 )}
               </View>
+            ) : activeTab === 'history' ? (
+              <View style={styles.chatContainer}>
+                <ScrollView
+                  contentContainerStyle={styles.historyContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyIcon}>📖</Text>
+                    <View style={styles.historyTextBlock}>
+                      <Text style={styles.historyLabel}>Started reading</Text>
+                      <Text style={styles.historyValue}>
+                        {formatTrackingDate(currentBook.startedAt) || 'Unknown'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.historyDivider} />
+
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyIcon}>📍</Text>
+                    <View style={styles.historyTextBlock}>
+                      <Text style={styles.historyLabel}>Current progress</Text>
+                      <Text style={styles.historyValue}>
+                        Page {currentBook.currentPage || 1} of{' '}
+                        {currentBook.totalPages || '?'} ({currentBook.progress || 0}%)
+                      </Text>
+
+                      <View style={styles.pageUpdateRow}>
+                        <TextInput
+                          style={styles.pageUpdateInput}
+                          value={pageInput}
+                          onChangeText={text => {
+                            setPageInput(text.replace(/[^0-9]/g, ''));
+                            if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
+                          }}
+                          keyboardType='number-pad'
+                          placeholder='Page'
+                          placeholderTextColor={theme.colors.textMuted}
+                          maxLength={6}
+                        />
+                        <TouchableOpacity
+                          style={[
+                            styles.pageUpdateButton,
+                            pageUpdateStatus === 'saving' && styles.pageUpdateButtonDisabled,
+                          ]}
+                          onPress={handleUpdateCurrentPage}
+                          disabled={pageUpdateStatus === 'saving'}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.pageUpdateButtonText}>
+                            {pageUpdateStatus === 'saving' ? 'Saving...' : 'Update'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      {pageUpdateStatus === 'error' && (
+                        <Text style={styles.pageUpdateError}>
+                          Enter a page between 1 and {currentBook.totalPages || '?'}.
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.historyDivider} />
+
+                  <View style={styles.historyRow}>
+                    <Text style={styles.historyIcon}>
+                      {currentBook.finishedAt ? '✅' : '⏳'}
+                    </Text>
+                    <View style={styles.historyTextBlock}>
+                      <Text style={styles.historyLabel}>
+                        {currentBook.finishedAt ? 'Finished reading' : 'Still reading'}
+                      </Text>
+                      <Text style={styles.historyValue}>
+                        {currentBook.finishedAt
+                          ? formatTrackingDate(currentBook.finishedAt)
+                          : currentBook.totalPages
+                          ? `${Math.max(0, 100 - (currentBook.progress || 0))}% left`
+                          : 'In progress'}
+                      </Text>
+                    </View>
+                  </View>
+                </ScrollView>
+              </View>
             ) : activeTab !== 'chat' ? (
               <View style={styles.chatContainer}>
                 <View style={styles.placeholderContainer}>
@@ -987,6 +1241,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  progressRingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressRingText: {
+    position: 'absolute',
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+  },
   banner: {
     position: 'absolute',
     top: 0,
@@ -1065,6 +1329,98 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
     boxShadow: '0px 8px 20px rgba(0, 0, 0, 0.35)',
+  },
+  statusSection: {
+    marginBottom: 10,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginTop: 4,
+    backgroundColor: theme.colors.textMuted,
+  },
+  statusDotActive: {
+    backgroundColor: theme.colors.orange,
+  },
+  statusPillText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+    lineHeight: 16,
+  },
+  statusChevron: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+  },
+  statusMenu: {
+    marginTop: 6,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: 10,
+    padding: 6,
+  },
+  statusOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  statusOptionText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.textSecondary,
+  },
+  statusOptionTextActive: {
+    color: theme.colors.orange,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  statusCheck: {
+    fontSize: 13,
+    color: theme.colors.orange,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  statusMenuDivider: {
+    height: 1,
+    backgroundColor: theme.colors.borderSubtle,
+    marginVertical: 6,
+    marginHorizontal: 4,
+  },
+  ratingLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: 'rgba(201, 209, 217, 0.85)',
+    paddingHorizontal: 8,
+    marginBottom: 4,
+  },
+  starRow: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
+  },
+  star: {
+    fontSize: 20,
+    color: theme.colors.borderStrong,
+  },
+  starFilled: {
+    color: theme.colors.orange,
   },
   bylineBlock: {
     paddingHorizontal: 4,
@@ -1322,6 +1678,74 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
+  },
+  historyContent: {
+    padding: 20,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    gap: 14,
+    paddingVertical: 14,
+  },
+  historyDivider: {
+    height: 1,
+    backgroundColor: theme.colors.borderSubtle,
+  },
+  historyIcon: {
+    fontSize: 20,
+    marginTop: 2,
+  },
+  historyTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  historyLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: 'rgba(201, 209, 217, 0.85)',
+    marginBottom: 3,
+  },
+  historyValue: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+  },
+  pageUpdateRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  pageUpdateInput: {
+    width: 90,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: theme.colors.textPrimary,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  pageUpdateButton: {
+    backgroundColor: theme.colors.orange,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  pageUpdateButtonDisabled: {
+    opacity: 0.6,
+  },
+  pageUpdateButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  pageUpdateError: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.danger,
   },
   chatContainer: {
     flex: 1,
