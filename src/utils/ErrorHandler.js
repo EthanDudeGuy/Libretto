@@ -69,6 +69,18 @@ export const handleClaudeResponse = (
     };
   }
 
+  // An explicit success: false always means failure, regardless of whether
+  // a message is present — this must be checked before the generic
+  // "has a message" fallback below, or a failed response with a friendly
+  // error message would be reported back to the caller as a success.
+  if (response.success === false) {
+    return {
+      success: false,
+      message: response.message || fallbackMessage,
+      error: response.error || 'Request failed',
+    };
+  }
+
   // Handle success case
   if (response.success && response.message) {
     return {
@@ -77,11 +89,11 @@ export const handleClaudeResponse = (
     };
   }
 
-  // Handle error case with message
+  // No explicit success flag, but an error is present — treat as failure.
   if (response.error) {
     return {
       success: false,
-      message: handleAPIError(new Error(response.error)),
+      message: response.message || handleAPIError(new Error(response.error)),
       error: response.error,
     };
   }

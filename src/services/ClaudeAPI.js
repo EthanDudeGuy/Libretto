@@ -14,8 +14,26 @@ const BACKEND_BASE_URL =
 const CHAT_ENDPOINT = `${BACKEND_BASE_URL}/api/chat`;
 const SUMMARY_ENDPOINT = `${BACKEND_BASE_URL}/api/summary`;
 const SAVE_SESSION_ENDPOINT = `${BACKEND_BASE_URL}/api/save-session`;
+const COMMUNITY_ENDPOINT = `${BACKEND_BASE_URL}/api/community`;
 
 // Note: Book context and system prompt generation is now handled by the backend server
+
+// Strip the client-only welcome placeholder, failed-request messages, and
+// any empty entries before sending history to the backend. Claude never
+// actually authored the welcome message or the error text shown after a
+// failed request — including them as real turns confuses follow-ups like
+// "try again," since Claude would see its own error message as context
+// instead of the question that failed.
+const cleanConversationHistory = (conversationHistory = []) =>
+  conversationHistory
+    .filter(
+      msg =>
+        !msg.isWelcomeMessage &&
+        !msg.isError &&
+        typeof msg.text === 'string' &&
+        msg.text.trim().length > 0
+    )
+    .map(msg => ({ isUser: !!msg.isUser, text: msg.text }));
 
 // Send message to backend API
 export const sendMessageToClaude = async (
@@ -41,7 +59,7 @@ export const sendMessageToClaude = async (
       session_id: 'book-chat-session', // Simple session ID
       message: userMessage,
       book_data: bookData,
-      conversation_history: conversationHistory,
+      conversation_history: cleanConversationHistory(conversationHistory),
       user: user
         ? {
             firstName: user.firstName,
@@ -242,6 +260,61 @@ export const saveSessionSummary = async (book, conversationHistory = []) => {
     return {
       success: false,
       error: error.message,
+    };
+  }
+};
+
+// Find community discussions and reference resources for a book via the
+// backend's web-search-backed endpoint.
+export const getCommunityResources = async book => {
+  try {
+    const bookData = {
+      title: book.title,
+      author: book.author,
+      currentPage: book.currentPage || 1,
+      totalPages: book.totalPages,
+      progress: book.progress || 0,
+    };
+
+    const response = await fetch(COMMUNITY_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ book_data: bookData }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Backend API error: ${response.status}`;
+      try {
+        const errorText = await response.text();
+        errorMessage += ` - ${errorText}`;
+      } catch (e) {
+        errorMessage += ' - Unable to read error details';
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return {
+        success: true,
+        sources: Array.isArray(data.sources) ? data.sources : [],
+      };
+    }
+
+    return {
+      success: false,
+      sources: [],
+      error: data.message || handleAPIError(new Error(data.error), 'Community API'),
+    };
+  } catch (error) {
+    logError(error, 'Community API call', { endpoint: COMMUNITY_ENDPOINT });
+    return {
+      success: false,
+      sources: [],
+      error: handleAPIError(error, 'Community API'),
     };
   }
 };

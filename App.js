@@ -112,7 +112,13 @@ function AppContent() {
           onSelectBook={handleSelectBookFromSettings}
         />
       ) : (
-        <BookChat book={selectedBook} onBack={navigateToHomepage} />
+        <BookChat
+          book={selectedBook}
+          onBack={navigateToHomepage}
+          onNavigateHome={navigateToHomepage}
+          onNavigateSettings={navigateToSettings}
+          onSelectBook={navigateToChat}
+        />
       )}
       <StatusBar style='light' />
     </SafeAreaView>

@@ -28,9 +28,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   bookImage: {
-    width: 140,
-    height: 200,
-    borderRadius: 16,
+    width: 112,
+    height: 160,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     backgroundColor: theme.colors.surface,
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   bookThumbnail: {
     width: '100%',
     height: '100%',
-    borderRadius: 16,
+    borderRadius: 14,
   },
   imagePlaceholder: {
     width: '100%',

@@ -10,35 +10,150 @@ import {
   Platform,
   Animated,
   Image,
-  PanResponder,
-  Modal,
   Dimensions,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import theme from '../constants/theme';
-import { updateBook, calculateProgress } from '../utils/BookStorage';
 import SimpleBookImage from '../components/SimpleBookImage';
-import DeleteBookModal from '../components/DeleteBookModal';
-import { sendMessageToClaude } from '../services/ClaudeAPI';
+import AppHeader from '../components/AppHeader';
+import { sendMessageToClaude, getCommunityResources } from '../services/ClaudeAPI';
 import { useAuth } from '../context/AuthContext';
-import { deleteBook as deleteBookFromStorage } from '../utils/BookStorage';
 import { handleAPIError, logError } from '../utils/ErrorHandler';
 import ImageColors from 'react-native-image-colors';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle } from 'react-native-svg';
 
 const { height: WINDOW_HEIGHT } = Dimensions.get('window');
 const BANNER_HEIGHT = Math.max(160, WINDOW_HEIGHT * 0.2);
 
-export default function BookChat({ book, onBack }) {
+const TABS = [
+  { key: 'chat', label: 'Chat' },
+  { key: 'community', label: 'Community' },
+  { key: 'access', label: 'Access' },
+  { key: 'information', label: 'Information' },
+  { key: 'history', label: 'History' },
+];
+
+// Placeholder copy for tabs with no backing data/feature yet — shell only,
+// content comes in a later pass.
+const TAB_PLACEHOLDER_COPY = {
+  access: {
+    title: 'Access',
+    body: 'Ways to read or buy this book will show up here.',
+  },
+  information: {
+    title: 'Information',
+    body: 'Extended details about this book will show up here.',
+  },
+  history: {
+    title: 'History',
+    body: 'Your reading activity and past sessions will show up here.',
+  },
+};
+
+// Community tab: category and spoiler-level display metadata. The actual
+// sources come from the backend's /api/community endpoint (real web search
+// results), never hardcoded here — this is purely presentation.
+const COMMUNITY_CATEGORY_ORDER = ['discussion', 'reference', 'deep_dive'];
+const COMMUNITY_CATEGORY_META = {
+  discussion: { icon: '💬', label: 'Discussions', cta: 'Open discussion' },
+  reference: { icon: '📚', label: 'Reference', cta: 'View reference' },
+  deep_dive: { icon: '🔎', label: 'Deep Dives', cta: 'Read analysis' },
+};
+const COMMUNITY_SPOILER_META = {
+  spoiler_free: { label: 'Spoiler-free', color: theme.colors.success },
+  may_contain_spoilers: { label: 'May contain spoilers', color: theme.colors.warning },
+  full_book_spoilers: { label: 'Full-book spoilers', color: theme.colors.danger },
+};
+const COMMUNITY_RELEVANCE_RANK = { high: 0, medium: 1, low: 2 };
+
+function groupCommunitySources(sources) {
+  return COMMUNITY_CATEGORY_ORDER
+    .map(category => ({
+      category,
+      meta: COMMUNITY_CATEGORY_META[category],
+      items: sources
+        .filter(source => source.category === category)
+        .sort(
+          (a, b) =>
+            (COMMUNITY_RELEVANCE_RANK[a.relevance] ?? 3) -
+            (COMMUNITY_RELEVANCE_RANK[b.relevance] ?? 3)
+        ),
+    }))
+    .filter(group => group.items.length > 0);
+}
+
+// Compact radial indicator used to merge "progress" and "reading time" into
+// one glanceable widget instead of two separate text rows.
+function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
+  const clamped = Math.max(0, Math.min(100, percent));
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - clamped / 100);
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={theme.colors.surfaceElevated}
+          strokeWidth={strokeWidth}
+          fill='none'
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={theme.colors.orange}
+          strokeWidth={strokeWidth}
+          fill='none'
+          strokeDasharray={`${circumference}, ${circumference}`}
+          strokeDashoffset={dashOffset}
+          strokeLinecap='round'
+          rotation='-90'
+          origin={`${size / 2}, ${size / 2}`}
+        />
+      </Svg>
+      <Text
+        style={{
+          position: 'absolute',
+          fontSize: 12,
+          fontFamily: 'Inter_600SemiBold',
+          color: theme.colors.textPrimary,
+        }}
+      >
+        {Math.round(clamped)}%
+      </Text>
+    </View>
+  );
+}
+
+export default function BookChat({
+  book,
+  onBack,
+  onNavigateHome,
+  onNavigateSettings,
+  onSelectBook,
+}) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [draggedLineIndex, setDraggedLineIndex] = useState(null);
   const [currentBook, setCurrentBook] = useState(book);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
   const [isWelcomeTyping, setIsWelcomeTyping] = useState(false);
   const [welcomeMessageText, setWelcomeMessageText] = useState('');
   const [backgroundColor, setBackgroundColor] = useState(theme.colors.surface);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  // status: 'idle' | 'loading' | 'success' | 'error'
+  const [communityState, setCommunityState] = useState({
+    status: 'idle',
+    sources: [],
+    error: null,
+    bookId: null,
+  });
   const scrollViewRef = useRef();
   const { user } = useAuth();
 
@@ -78,68 +193,20 @@ export default function BookChat({ book, onBack }) {
     return { displayedText, isComplete };
   };
 
-  // Dynamic summary generator with personalized witty comments
-  const generatePlaceholderSummary = () => {
+  // Short, plain opening line — no random one-liners, no name repetition.
+  // This is client-generated (Claude never "said" it), so it's kept purely
+  // functional rather than trying to sound like part of the conversation.
+  const buildWelcomeMessage = () => {
     const progress = currentBook.progress || 0;
     const currentPage = currentBook.currentPage || 1;
-    const totalPages = currentBook.totalPages || 1;
-    const userName = user?.name || user?.email?.split('@')[0] || 'bookworm';
-
-    // Witty comments based on reading progress
-    const getWittyComment = (progress, currentPage, totalPages) => {
-      const wittyComments = {
-        justStarted: [
-          "Time to crack open this literary treasure!",
-          "The adventure begins... are you ready?",
-          "First page jitters are totally normal!",
-          "Every great reader starts with a single page."
-        ],
-        early: [
-          "You're just getting warmed up!",
-          "The plot is thickening... or is that your curiosity?",
-          "Already hooked? I can tell!",
-          "Building momentum like a literary locomotive!"
-        ],
-        middle: [
-          "You're in the sweet spot of the story!",
-          "The plot twists are coming... I can feel it!",
-          "Halfway through and still turning pages? That's commitment!",
-          "You're officially past the point of no return!"
-        ],
-        almostDone: [
-          "The finish line is in sight!",
-          "You're so close to that satisfying 'The End' feeling!",
-          "Almost there... but don't rush the climax!",
-          "The final chapters await your eager eyes!"
-        ],
-        finished: [
-          "Congratulations on completing this literary journey!",
-          "You did it! Time for that post-book glow!",
-          "Another book conquered! What's next on your list?",
-          "The satisfaction of finishing a good book is unmatched!"
-        ]
-      };
-
-      if (progress === 0) {
-        return wittyComments.justStarted[Math.floor(Math.random() * wittyComments.justStarted.length)];
-      } else if (progress < 25) {
-        return wittyComments.early[Math.floor(Math.random() * wittyComments.early.length)];
-      } else if (progress < 75) {
-        return wittyComments.middle[Math.floor(Math.random() * wittyComments.middle.length)];
-      } else if (progress < 95) {
-        return wittyComments.almostDone[Math.floor(Math.random() * wittyComments.almostDone.length)];
-      } else {
-        return wittyComments.finished[Math.floor(Math.random() * wittyComments.finished.length)];
-      }
-    };
-
-    const wittyComment = getWittyComment(progress, currentPage, totalPages);
+    const totalPages = currentBook.totalPages;
 
     if (progress === 0) {
-      return `Welcome back, ${userName}! ${wittyComment} Ready to dive into "${currentBook.title}"?`;
-    } else {
-      return `Welcome back, ${userName}! ${wittyComment} You're on page ${currentPage} of ${totalPages} in "${currentBook.title}". What would you like to discuss?`;
+      return `Starting "${currentBook.title}" — ask me anything as you go, themes, characters, whatever's on your mind.`;
     }
+
+    const pageInfo = totalPages ? `page ${currentPage} of ${totalPages}` : `page ${currentPage}`;
+    return `Back in "${currentBook.title}", ${pageInfo}. What's on your mind?`;
   };
 
   // Update local book state when prop changes
@@ -268,7 +335,7 @@ export default function BookChat({ book, onBack }) {
 
   // Add initial AI message when component mounts
   useEffect(() => {
-    const initialMessage = generatePlaceholderSummary();
+    const initialMessage = buildWelcomeMessage();
     setWelcomeMessageText(initialMessage);
     setIsWelcomeTyping(true);
     
@@ -326,15 +393,10 @@ export default function BookChat({ book, onBack }) {
     }
   }, [isWelcomeTyping, cursorBlinkAnim]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
+  // Returns { text, isError } so the message bubble can be styled
+  // differently when the request failed, instead of looking like a normal reply.
   const generateAIResponse = async userMessage => {
     try {
-      // Use Claude API for smart responses
       const claudeResponse = await sendMessageToClaude(
         userMessage,
         currentBook,
@@ -343,117 +405,29 @@ export default function BookChat({ book, onBack }) {
       );
 
       if (claudeResponse.success) {
-        return claudeResponse.message;
-      } else {
-        // Use the error handling utility for consistent error messages
-        logError(new Error(claudeResponse.error), 'AI Response Generation');
-        return (
-          claudeResponse.message ||
-          handleAPIError(new Error(claudeResponse.error), 'AI Response')
-        );
+        return { text: claudeResponse.message, isError: false };
       }
+
+      logError(
+        new Error(claudeResponse.error || 'Chat request failed'),
+        'AI Response Generation'
+      );
+      return {
+        text:
+          claudeResponse.message ||
+          handleAPIError(new Error(claudeResponse.error), 'AI Response'),
+        isError: true,
+      };
     } catch (error) {
       logError(error, 'AI Response Generation');
-      return handleAPIError(error, 'AI Response Generation');
+      return { text: handleAPIError(error, 'AI Response Generation'), isError: true };
     }
   };
-
-  const handlePageChange = async direction => {
-    const newPage = currentBook.currentPage + direction;
-    if (newPage >= 1 && newPage <= currentBook.totalPages) {
-      try {
-        const newProgress = calculateProgress(newPage, currentBook.totalPages);
-        await updateBook(currentBook.id, {
-          currentPage: newPage,
-          progress: newProgress,
-        });
-        // Update the local book state for immediate UI update
-        setCurrentBook(prev => ({
-          ...prev,
-          currentPage: newPage,
-          progress: newProgress,
-        }));
-      } catch (error) {
-        console.error('Error updating page:', error);
-      }
-    }
-  };
-
-  // Create PanResponder for pixelated block dragging
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-
-    onPanResponderGrant: event => {
-      // Calculate which block was touched
-      const touchX = event.nativeEvent.locationX;
-      const blockWidth = 8; // Width of each pixelated block
-      const blockSpacing = 3; // Space between blocks
-      const totalWidth = blockWidth + blockSpacing;
-      const blockIndex = Math.floor(touchX / totalWidth);
-      setDraggedLineIndex(blockIndex);
-    },
-
-    onPanResponderMove: event => {
-      // Update which block is being dragged during movement
-      const touchX = event.nativeEvent.locationX;
-      const blockWidth = 8;
-      const blockSpacing = 3;
-      const totalWidth = blockWidth + blockSpacing;
-      const blockIndex = Math.floor(touchX / totalWidth);
-      setDraggedLineIndex(blockIndex);
-    },
-
-    onPanResponderRelease: async event => {
-      const touchX = event.nativeEvent.locationX;
-      const blockWidth = 8;
-      const blockSpacing = 3;
-      const totalWidth = blockWidth + blockSpacing;
-      const blockIndex = Math.floor(touchX / totalWidth);
-
-      // Convert block index to page number based on total blocks
-      const totalBlocks = 32;
-      const clampedBlockIndex = Math.max(0, Math.min(blockIndex, totalBlocks - 1));
-      const progressPercentage = (clampedBlockIndex / (totalBlocks - 1)) * 100;
-      const newPage = Math.max(
-        1,
-        Math.min(
-          currentBook.totalPages,
-          Math.round((progressPercentage / 100) * currentBook.totalPages)
-        )
-      );
-
-      if (newPage !== currentBook.currentPage) {
-        try {
-          const newProgress = calculateProgress(
-            newPage,
-            currentBook.totalPages
-          );
-          await updateBook(currentBook.id, {
-            currentPage: newPage,
-            progress: newProgress,
-          });
-          // Update the local book state for immediate UI update
-          setCurrentBook(prev => ({
-            ...prev,
-            currentPage: newPage,
-            progress: newProgress,
-          }));
-        } catch (error) {
-          console.error('Error updating page:', error);
-        }
-      }
-
-      setDraggedLineIndex(null);
-    },
-
-    onPanResponderTerminate: () => {
-      setDraggedLineIndex(null);
-    },
-  });
 
   const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+    // Guards against duplicate sends: an empty box, and mashing enter/send
+    // again while a request is already in flight.
+    if (!inputText.trim() || isTyping) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -468,26 +442,28 @@ export default function BookChat({ book, onBack }) {
     setIsTyping(true);
 
     try {
-      // Generate AI response from Claude
-      const aiResponseText = await generateAIResponse(currentInput);
+      const { text: aiResponseText, isError } = await generateAIResponse(currentInput);
 
       const aiResponse = {
         id: (Date.now() + 1).toString(),
         text: aiResponseText,
         isUser: false,
         timestamp: new Date(),
+        isError,
       };
 
       setMessages(prev => [...prev, aiResponse]);
     } catch (error) {
+      // generateAIResponse already catches its own errors, so this is a
+      // last-resort net for something truly unexpected.
       console.error('Error generating AI response:', error);
 
-      // Show specific error message about API configuration
       const errorResponse = {
         id: (Date.now() + 1).toString(),
-        text: "I'm having trouble connecting to the AI service. Please check that your Claude API key is valid and try again. If the problem persists, the API key may need to be updated.",
+        text: 'Something went wrong on my end. Please try again.',
         isUser: false,
         timestamp: new Date(),
+        isError: true,
       };
 
       setMessages(prev => [...prev, errorResponse]);
@@ -500,54 +476,66 @@ export default function BookChat({ book, onBack }) {
     onBack();
   };
 
-  const handleDeleteBook = () => {
-    setShowDeleteModal(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      await deleteBookFromStorage(currentBook.id);
-      // Navigate back to library after successful deletion
-      onBack();
-    } catch (error) {
-      console.error('Error deleting book:', error);
-      // You might want to show an error message here
+  const loadCommunityResources = async () => {
+    setCommunityState({ status: 'loading', sources: [], error: null, bookId: currentBook.id });
+    const result = await getCommunityResources(currentBook);
+    if (result.success) {
+      setCommunityState({ status: 'success', sources: result.sources, error: null, bookId: currentBook.id });
+    } else {
+      setCommunityState({ status: 'error', sources: [], error: result.error, bookId: currentBook.id });
     }
   };
 
-  const renderPageLines = () => {
-    // Create pixelated progress bar with fixed number of blocks
-    const totalBlocks = 32; // Fixed number of pixelated blocks
-    const progressPercentage = currentBook.progress || 0;
-    const filledBlocks = Math.floor((progressPercentage / 100) * totalBlocks);
-    const blocks = [];
+  // Fetch once per book, the first time the Community tab is opened — not
+  // on mount, since most sessions never visit it and it's a paid search call.
+  useEffect(() => {
+    if (activeTab !== 'community') return;
+    if (communityState.bookId === currentBook.id && communityState.status !== 'idle') return;
+    loadCommunityResources();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentBook.id]);
 
-    for (let i = 0; i < totalBlocks; i++) {
-      const isFilled = i < filledBlocks;
-      const isCurrentBlock = i === filledBlocks - 1 && progressPercentage > 0;
-      const isDragged = draggedLineIndex === i;
+  // Minimal markdown for Claude's replies: **bold** spans and "- " bullet
+  // lines. Deliberately not a full markdown parser — just enough to keep
+  // Claude's occasional formatting from showing up as literal asterisks.
+  const renderFormattedText = (text, textStyle) => {
+    const renderInline = line =>
+      line
+        .split(/(\*\*[^*]+\*\*)/g)
+        .filter(part => part.length > 0)
+        .map((part, i) =>
+          part.startsWith('**') && part.endsWith('**') ? (
+            <Text key={i} style={styles.boldText}>
+              {part.slice(2, -2)}
+            </Text>
+          ) : (
+            <Text key={i}>{part}</Text>
+          )
+        );
 
-      blocks.push(
-        <View
-          key={i}
-          style={[
-            styles.pixelatedBlock,
-            {
-              backgroundColor: isFilled
-                ? theme.colors.blue
-                : theme.colors.surfaceElevated,
-              borderColor: isFilled
-                ? theme.colors.blue
-                : theme.colors.borderSubtle,
-              transform: [{ scale: isDragged ? 1.1 : isCurrentBlock ? 1.05 : 1 }],
-              opacity: isFilled ? 1 : 0.6,
-            },
-          ]}
-        />
+    return text.split('\n').map((line, i) => {
+      if (line.trim().length === 0) {
+        return <View key={i} style={styles.blankLine} />;
+      }
+
+      const bulletMatch = line.match(/^\s*[-*]\s+(.*)/);
+      if (bulletMatch) {
+        return (
+          <View key={i} style={styles.bulletLine}>
+            <Text style={[textStyle, styles.bulletDot]}>{'•'}</Text>
+            <Text style={[textStyle, styles.bulletTextContent]}>
+              {renderInline(bulletMatch[1])}
+            </Text>
+          </View>
+        );
+      }
+
+      return (
+        <Text key={i} style={textStyle}>
+          {renderInline(line)}
+        </Text>
       );
-    }
-
-    return blocks;
+    });
   };
 
   const renderMessage = message => (
@@ -562,6 +550,7 @@ export default function BookChat({ book, onBack }) {
         style={[
           styles.messageBubble,
           message.isUser ? styles.userBubble : styles.aiBubble,
+          message.isError && styles.errorBubble,
         ]}
       >
         {!message.isUser && (
@@ -573,27 +562,67 @@ export default function BookChat({ book, onBack }) {
             />
           </View>
         )}
-        <Text
-          style={[
-            styles.messageText,
-            message.isUser ? styles.userText : styles.aiText,
-          ]}
-        >
-          {message.text}
-          {message.isWelcomeMessage && isWelcomeTyping && (
-            <Animated.Text 
+        <View style={styles.messageContent}>
+          {message.isUser || message.isWelcomeMessage ? (
+            <Text
               style={[
-                styles.typingCursor,
-                { opacity: cursorBlinkAnim }
+                styles.messageText,
+                message.isUser ? styles.userText : styles.aiText,
               ]}
             >
-              |
-            </Animated.Text>
+              {message.text}
+              {message.isWelcomeMessage && isWelcomeTyping && (
+                <Animated.Text
+                  style={[
+                    styles.typingCursor,
+                    { opacity: cursorBlinkAnim },
+                  ]}
+                >
+                  |
+                </Animated.Text>
+              )}
+            </Text>
+          ) : (
+            renderFormattedText(message.text, [styles.messageText, styles.aiText])
           )}
-        </Text>
+        </View>
       </View>
     </View>
   );
+
+  // Remaining reading time, replacing the old flat "Progress: X% Complete"
+  // sidebar row — paired with the radial ring instead of repeating the
+  // percentage the ring already shows.
+  const readingTimeLabel = (() => {
+    if (!currentBook.totalPages) return 'Reading time unknown';
+    const remainingPages = Math.max(currentBook.totalPages - (currentBook.currentPage || 0), 0);
+    if (remainingPages <= 0) return 'Finished';
+    return `~${Math.max(1, Math.ceil(remainingPages / 2))} min left`;
+  })();
+
+  // Secondary metadata, only the fields that are actually present — shown
+  // behind the "More details" toggle rather than as equal-weight rows.
+  const moreDetailsRows = [];
+  if (currentBook.categories && currentBook.categories.length > 0) {
+    moreDetailsRows.push({ label: 'Genre', value: currentBook.categories[0] });
+  }
+  if (currentBook.publisher) {
+    moreDetailsRows.push({ label: 'Publisher', value: currentBook.publisher });
+  }
+  if (currentBook.isbn) {
+    moreDetailsRows.push({ label: 'ISBN', value: currentBook.isbn, numberOfLines: 1 });
+  }
+  if (currentBook.description) {
+    moreDetailsRows.push({ label: 'Description', value: currentBook.description, numberOfLines: 4 });
+  }
+  if (currentBook.averageRating) {
+    moreDetailsRows.push({ label: 'Rating', value: `${currentBook.averageRating}/5 ⭐` });
+  }
+  if (currentBook.pageCount && currentBook.pageCount !== currentBook.totalPages) {
+    moreDetailsRows.push({ label: 'Page Count', value: String(currentBook.pageCount) });
+  }
+
+  const groupedCommunitySources = groupCommunitySources(communityState.sources);
 
   return (
     <View style={styles.container}>
@@ -607,6 +636,12 @@ export default function BookChat({ book, onBack }) {
         />
       </View>
 
+      <AppHeader
+        onSelectBook={onSelectBook}
+        onNavigateHome={onNavigateHome ?? onBack}
+        onNavigateSettings={onNavigateSettings}
+      />
+
       <Animated.View
         style={[
           styles.pageContent,
@@ -619,9 +654,9 @@ export default function BookChat({ book, onBack }) {
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-        {/* Header Section with Back Button and Progress Bar — always visible, sits on the banner */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
+        {/* Top Bar: Back Button, Book Title/Author, and Progress — always visible, sits on the banner */}
+        <View style={styles.topBar}>
+          <View style={styles.topBarLeft}>
             <TouchableOpacity
               style={styles.backButtonModal}
               onPress={handleBack}
@@ -629,294 +664,232 @@ export default function BookChat({ book, onBack }) {
               <Text style={styles.backButtonText}>← Library</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.headerRight}>
-            {/* Progress Bar Section - Aligned with right column (chatbox) */}
-            <View style={styles.progressSection}>
-              <View style={styles.pageScrollContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.progressArrow,
-                    currentBook.currentPage <= 1 &&
-                      styles.progressArrowDisabled,
-                  ]}
-                  onPress={() => handlePageChange(-1)}
-                  disabled={currentBook.currentPage <= 1}
-                >
-                  <Text
-                    style={[
-                      styles.progressArrowText,
-                      currentBook.currentPage <= 1 &&
-                        styles.progressArrowTextDisabled,
-                    ]}
-                  >
-                    ‹
-                  </Text>
-                </TouchableOpacity>
 
-                <View
-                  style={styles.pageLinesContainer}
-                  {...panResponder.panHandlers}
-                >
-                  {renderPageLines()}
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.progressArrow,
-                    currentBook.currentPage >= currentBook.totalPages &&
-                      styles.progressArrowDisabled,
-                  ]}
-                  onPress={() => handlePageChange(1)}
-                  disabled={currentBook.currentPage >= currentBook.totalPages}
-                >
-                  <Text
-                    style={[
-                      styles.progressArrowText,
-                      currentBook.currentPage >= currentBook.totalPages &&
-                        styles.progressArrowTextDisabled,
-                    ]}
-                  >
-                    ›
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Page Number Display - Positioned under the progress bar */}
-              <View style={styles.pageNumberContainer}>
-                <Text style={styles.pageNumberText}>
-                  {String(currentBook.currentPage)} / {String(currentBook.totalPages)}
-                </Text>
-              </View>
-            </View>
+          <View style={styles.topBarCenter}>
+            <Text style={styles.topBarTitle} numberOfLines={1}>
+              {currentBook.title}
+            </Text>
+            <Text style={styles.topBarAuthor} numberOfLines={1}>
+              {currentBook.author || 'Unknown'}
+            </Text>
           </View>
+
         </View>
 
         {/* Main Content Area */}
         <View style={styles.mainContent}>
           {/* Left Column: Book Cover and Facts */}
-          <View style={styles.leftColumn}>
+          <ScrollView
+            style={styles.leftColumn}
+            contentContainerStyle={styles.leftColumnContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Book Cover using SimpleBookImage component */}
             <View style={styles.bookCoverContainer}>
               <SimpleBookImage book={currentBook} />
             </View>
 
-            {/* Book Info Section */}
-            <View style={styles.bookInfoContainer}>
-              <View style={styles.infoContent}>
-                <View style={styles.infoRow}>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Author</Text>
-                    <Text style={styles.infoValue} numberOfLines={2}>
-                      {currentBook.author || 'Unknown'}
-                    </Text>
-                  </View>
-                </View>
+            {/* Compact byline: Author / Published / Pages / Language as one
+                de-emphasized block instead of four equal-weight rows. */}
+            <View style={styles.bylineBlock}>
+              <Text style={styles.bylineAuthor} numberOfLines={2}>
+                {currentBook.author || 'Unknown author'}
+              </Text>
+              <Text style={styles.bylineMeta} numberOfLines={2}>
+                {[
+                  currentBook.publishedDate,
+                  currentBook.totalPages ? `${currentBook.totalPages} pages` : null,
+                  currentBook.language || 'English',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
 
-                <View style={styles.infoDivider} />
-
-                <View style={styles.infoRow}>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Published</Text>
-                    <Text style={styles.infoValue}>
-                      {currentBook.publishedDate || 'Unknown'}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoDivider} />
-
-                <View style={styles.infoRow}>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Pages</Text>
-                    <Text style={styles.infoValue}>
-                      {String(currentBook.totalPages || 'Unknown')}
-                    </Text>
-                  </View>
-                </View>
-
-                {currentBook.categories &&
-                  currentBook.categories.length > 0 ? (
-                    <>
-                      <View style={styles.infoDivider} />
-                      <View style={styles.infoRow}>
-                        <View style={styles.infoTextContainer}>
-                          <Text style={styles.infoLabel}>Genre</Text>
-                          <Text style={styles.infoValue} numberOfLines={2}>
-                            {currentBook.categories[0]}
-                          </Text>
-                        </View>
-                      </View>
-                    </>
-                  ) : null}
-
-                {currentBook.publisher ? (
-                  <>
-                    <View style={styles.infoDivider} />
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoLabel}>Publisher</Text>
-                        <Text style={styles.infoValue} numberOfLines={2}>
-                          {currentBook.publisher}
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                ) : null}
-
-                {currentBook.isbn ? (
-                  <>
-                    <View style={styles.infoDivider} />
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoLabel}>ISBN</Text>
-                        <Text style={styles.infoValue} numberOfLines={1}>
-                          {currentBook.isbn}
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                ) : null}
-
-                <View style={styles.infoDivider} />
-                <View style={styles.infoRow}>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Language</Text>
-                    <Text style={styles.infoValue}>
-                      {currentBook.language || 'English'}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoDivider} />
-                <View style={styles.infoRow}>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Reading Time</Text>
-                    <Text style={styles.infoValue}>
-                      {currentBook.totalPages
-                        ? String(Math.ceil(currentBook.totalPages / 2)) + ' min'
-                        : 'Unknown'}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoDivider} />
-                <View style={styles.infoRow}>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoLabel}>Progress</Text>
-                    <Text style={styles.infoValue}>
-                      {String(currentBook.progress || 0)}% Complete
-                    </Text>
-                  </View>
-                </View>
-
-                {currentBook.description ? (
-                  <>
-                    <View style={styles.infoDivider} />
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoLabel}>Description</Text>
-                        <Text style={styles.infoValue} numberOfLines={3}>
-                          {currentBook.description}
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                ) : null}
-
-                {currentBook.averageRating ? (
-                  <>
-                    <View style={styles.infoDivider} />
-                    <View style={styles.infoRow}>
-                      <View style={styles.infoTextContainer}>
-                        <Text style={styles.infoLabel}>Rating</Text>
-                        <Text style={styles.infoValue}>
-                          {String(currentBook.averageRating)}/5 ⭐
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                ) : null}
-
-                {currentBook.pageCount &&
-                  currentBook.pageCount !== currentBook.totalPages ? (
-                    <>
-                      <View style={styles.infoDivider} />
-                      <View style={styles.infoRow}>
-                        <View style={styles.infoTextContainer}>
-                          <Text style={styles.infoLabel}>Page Count</Text>
-                          <Text style={styles.infoValue}>
-                            {String(currentBook.pageCount)}
-                          </Text>
-                        </View>
-                      </View>
-                    </>
-                  ) : null}
+            {/* Progress + reading time, merged into one compact radial widget */}
+            <View style={styles.statsCard}>
+              <ProgressRing percent={currentBook.progress || 0} />
+              <View style={styles.statsTextBlock}>
+                <Text style={styles.statsLabel}>Progress</Text>
+                <Text style={styles.statsValue}>{readingTimeLabel}</Text>
               </View>
             </View>
-          </View>
 
-          {/* Right Column: Header and Chatbox */}
+            {/* Everything else is secondary — tucked behind a toggle so it
+                doesn't compete visually with the cover, byline, and progress. */}
+            {moreDetailsRows.length > 0 && (
+              <View style={styles.moreDetailsSection}>
+                <TouchableOpacity
+                  style={styles.moreDetailsToggle}
+                  onPress={() => setShowMoreDetails(prev => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.moreDetailsToggleText}>More details</Text>
+                  <Text style={styles.moreDetailsChevron}>
+                    {showMoreDetails ? '︿' : '﹀'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showMoreDetails && (
+                  <View style={styles.bookInfoContainer}>
+                    <View style={styles.infoContent}>
+                      {moreDetailsRows.map((row, index) => (
+                        <React.Fragment key={row.label}>
+                          {index > 0 && <View style={styles.infoDivider} />}
+                          <View style={styles.infoRow}>
+                            <View style={styles.infoTextContainer}>
+                              <Text style={styles.infoLabel}>{row.label}</Text>
+                              <Text
+                                style={styles.infoValue}
+                                numberOfLines={row.numberOfLines || 2}
+                              >
+                                {row.value}
+                              </Text>
+                            </View>
+                          </View>
+                        </React.Fragment>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Right Column: Tabs + Chatbox */}
           <View style={styles.rightColumn}>
-            {/* Right Column Header with Book Title and Author */}
-            <View style={styles.rightColumnHeader}>
-              {/* Book Title and Author Section */}
-              <View style={styles.headerTopRow}>
-                <View style={styles.bookTitleAuthorContainer}>
-                  <Text style={styles.rightColumnBookTitle}>
-                    {currentBook.title}
-                  </Text>
-                  <Text style={styles.rightColumnAuthor}>
-                    {currentBook.author || 'Unknown'}
-                  </Text>
-                </View>
-
-                <View style={styles.directoryIconContainer}>
-                  <TouchableOpacity
-                    style={styles.directoryIcon}
-                    onPress={() => setShowActionMenu(!showActionMenu)}
+            <View style={styles.tabBar}>
+              {TABS.map(tab => (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={styles.tabItem}
+                  onPress={() => setActiveTab(tab.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      activeTab === tab.key && styles.tabLabelActive,
+                    ]}
                   >
-                    <Text style={styles.directoryIconText}>⋮</Text>
-                  </TouchableOpacity>
-
-                  {/* Action Menu Modal */}
-                  <Modal
-                    visible={showActionMenu}
-                    transparent={true}
-                    animationType="fade"
-                    onRequestClose={() => setShowActionMenu(false)}
-                  >
-                    <TouchableOpacity
-                      style={styles.actionMenuBackdrop}
-                      activeOpacity={1}
-                      onPress={() => setShowActionMenu(false)}
-                    >
-                      <View style={styles.actionMenuWrapper}>
-                        <View style={styles.actionMenuContainer}>
-                          <TouchableOpacity
-                            style={styles.actionMenuItem}
-                            onPress={() => {
-                              setShowActionMenu(false);
-                              handleDeleteBook();
-                            }}
-                          >
-                            <Text style={styles.actionMenuIcon}>🗑️</Text>
-                            <Text style={styles.actionMenuText}>Delete Book</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  </Modal>
-                </View>
-              </View>
+                    {tab.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.tabIndicator,
+                      activeTab === tab.key && styles.tabIndicatorActive,
+                    ]}
+                  />
+                </TouchableOpacity>
+              ))}
             </View>
 
-            {/* Main Chat Area */}
+            {activeTab === 'community' ? (
+              <View style={styles.chatContainer}>
+                {communityState.status === 'loading' ? (
+                  <View style={styles.communityStatusContainer}>
+                    <ActivityIndicator color={theme.colors.orange} size='small' />
+                    <Text style={styles.communityStatusText}>
+                      Searching the web for places to talk about "{currentBook.title}"...
+                    </Text>
+                  </View>
+                ) : communityState.status === 'error' ? (
+                  <View style={styles.communityStatusContainer}>
+                    <Text style={styles.communityStatusTitle}>Couldn't load communities</Text>
+                    <Text style={styles.communityStatusText}>
+                      {communityState.error || 'Something went wrong. Please try again.'}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.communityRetryButton}
+                      onPress={loadCommunityResources}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.communityRetryText}>Try again</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : groupedCommunitySources.length === 0 ? (
+                  <View style={styles.communityStatusContainer}>
+                    <Text style={styles.communityStatusTitle}>No communities found yet</Text>
+                    <Text style={styles.communityStatusText}>
+                      "{currentBook.title}" might be too new, obscure, or without much of an
+                      online following right now.
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    contentContainerStyle={styles.communityContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={styles.communityIntro}>
+                      See where readers are talking about and exploring "{currentBook.title}"
+                      across the web.
+                    </Text>
+                    {groupedCommunitySources.map(group => (
+                      <View key={group.category} style={styles.communityCategoryBlock}>
+                        <Text style={styles.communityCategoryHeader}>
+                          {group.meta.icon} {group.meta.label}
+                        </Text>
+                        {group.items.map((source, index) => {
+                          const spoilerMeta =
+                            COMMUNITY_SPOILER_META[source.spoiler_level] ||
+                            COMMUNITY_SPOILER_META.may_contain_spoilers;
+                          return (
+                            <TouchableOpacity
+                              key={`${source.url}-${index}`}
+                              style={styles.communityCard}
+                              onPress={() => Linking.openURL(source.url)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.communityCardTopRow}>
+                                <Text style={styles.communityName} numberOfLines={1}>
+                                  {source.platform} — {source.title}
+                                </Text>
+                                <View
+                                  style={[
+                                    styles.spoilerBadge,
+                                    { borderColor: spoilerMeta.color },
+                                  ]}
+                                >
+                                  <Text style={[styles.spoilerBadgeText, { color: spoilerMeta.color }]}>
+                                    {spoilerMeta.label}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.communityDescription}>
+                                {source.description}
+                              </Text>
+                              <Text style={styles.communityCta}>
+                                {group.meta.cta} →
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            ) : activeTab !== 'chat' ? (
+              <View style={styles.chatContainer}>
+                <View style={styles.placeholderContainer}>
+                  <Text style={styles.placeholderTitle}>
+                    {TAB_PLACEHOLDER_COPY[activeTab].title}
+                  </Text>
+                  <Text style={styles.placeholderText}>
+                    {TAB_PLACEHOLDER_COPY[activeTab].body}
+                  </Text>
+                </View>
+              </View>
+            ) : (
             <View style={styles.chatContainer}>
               <ScrollView
                 ref={scrollViewRef}
                 style={styles.messagesContainer}
                 contentContainerStyle={styles.messagesContent}
                 showsVerticalScrollIndicator={false}
+                onContentSizeChange={() =>
+                  scrollViewRef.current?.scrollToEnd({ animated: true })
+                }
               >
                 {messages.map(renderMessage)}
 
@@ -1000,17 +973,10 @@ export default function BookChat({ book, onBack }) {
                 </TouchableOpacity>
               </View>
             </View>
+            )}
           </View>
         </View>
       </KeyboardAvoidingView>
-
-      {/* Delete Book Modal */}
-      <DeleteBookModal
-        visible={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={confirmDelete}
-        book={currentBook}
-      />
       </Animated.View>
     </View>
   );
@@ -1030,29 +996,38 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     flex: 1,
-    paddingLeft: 22,
-    paddingRight: 22,
+    paddingLeft: 16,
+    paddingRight: 16,
   },
   keyboardView: {
     flex: 1,
   },
-  header: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: 40,
+    paddingHorizontal: 8,
+    paddingBottom: 16,
+    gap: 16,
   },
-  headerLeft: {
-    width: 200,
+  topBarLeft: {
     alignItems: 'flex-start',
-    paddingHorizontal: 12,
   },
-  headerRight: {
+  topBarCenter: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
+    minWidth: 0,
+  },
+  topBarTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: 22,
+    fontWeight: 'bold',
+    fontFamily: 'Inter_700Bold',
+  },
+  topBarAuthor: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    marginTop: 2,
   },
   backButtonModal: {
     backgroundColor: theme.colors.surfaceElevated,
@@ -1070,39 +1045,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
   },
-  headerTitleContainer: {
-    flex: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerBookTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 36,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    fontFamily: 'Inter_700Bold',
-  },
-  directoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: theme.colors.surfaceElevated,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-  },
-  directoryIconText: {
-    fontSize: 18,
-    color: theme.colors.textPrimary,
-  },
-  progressSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    paddingTop: 8,
-    backgroundColor: 'transparent',
-  },
   mainContent: {
     flex: 1,
     flexDirection: 'row',
@@ -1110,42 +1052,90 @@ const styles = StyleSheet.create({
   },
   // Left Column Styles
   leftColumn: {
-    width: 200,
-    backgroundColor: 'transparent',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    width: 148,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  leftColumnContent: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingBottom: 24,
   },
   bookCoverContainer: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
     boxShadow: '0px 8px 20px rgba(0, 0, 0, 0.35)',
+  },
+  bylineBlock: {
+    paddingHorizontal: 4,
+    marginBottom: 10,
+    gap: 2,
+  },
+  bylineAuthor: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    lineHeight: 17,
+  },
+  bylineMeta: {
+    color: 'rgba(201, 209, 217, 0.85)',
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 15,
+  },
+  statsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    padding: 10,
+    marginBottom: 10,
+  },
+  statsTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  statsLabel: {
+    color: 'rgba(201, 209, 217, 0.85)',
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    marginBottom: 2,
+  },
+  statsValue: {
+    color: theme.colors.textPrimary,
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  moreDetailsSection: {
+    marginTop: 2,
+  },
+  moreDetailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  moreDetailsToggleText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+  },
+  moreDetailsChevron: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
   },
   bookInfoContainer: {
     backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.15)',
     elevation: 4,
-  },
-  infoHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  infoTitle: {
-    color: theme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: 'bold',
-    fontFamily: 'Inter_700Bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  infoTitleUnderline: {
-    width: 40,
-    height: 3,
-    backgroundColor: theme.colors.blue,
-    borderRadius: 2,
   },
   infoContent: {
     gap: 0,
@@ -1161,11 +1151,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   infoLabel: {
-    color: theme.colors.textMuted,
-    fontSize: 10,
+    color: 'rgba(201, 209, 217, 0.85)',
+    fontSize: 11,
     fontFamily: 'Inter_500Medium',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
     marginBottom: 2,
     lineHeight: 14,
   },
@@ -1185,146 +1173,155 @@ const styles = StyleSheet.create({
   // Right Column Styles
   rightColumn: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  rightColumnHeader: {
-    paddingVertical: 4,
-    paddingHorizontal: 4,
-    marginBottom: 8,
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+    marginBottom: 12,
   },
-  headerTopRow: {
+  tabItem: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    alignItems: 'center',
+  },
+  tabLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.textMuted,
+  },
+  tabLabelActive: {
+    color: theme.colors.textPrimary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  tabIndicator: {
+    height: 2,
+    alignSelf: 'stretch',
+    marginTop: 10,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  tabIndicatorActive: {
+    backgroundColor: theme.colors.orange,
+  },
+  placeholderContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 8,
+  },
+  placeholderTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+  },
+  placeholderText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 320,
+    lineHeight: 20,
+  },
+  communityContent: {
+    padding: 20,
+    gap: 4,
+  },
+  communityIntro: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textMuted,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  communityCategoryBlock: {
+    marginBottom: 18,
+    gap: 10,
+  },
+  communityCategoryHeader: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textSecondary,
+  },
+  communityCard: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    padding: 14,
+    gap: 6,
+  },
+  communityCardTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: 8,
   },
-  bookTitleAuthorContainer: {
+  communityName: {
     flex: 1,
-  },
-  rightColumnBookTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
-    fontSize: 24,
-    fontWeight: 'bold',
-    fontFamily: 'Inter_700Bold',
-    marginBottom: 4,
   },
-  rightColumnAuthor: {
+  communityDescription: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
     color: theme.colors.textMuted,
+    lineHeight: 17,
+  },
+  communityCta: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.orange,
+    marginTop: 2,
+  },
+  spoilerBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexShrink: 0,
+  },
+  spoilerBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  communityStatusContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 10,
+  },
+  communityStatusTitle: {
     fontSize: 16,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
   },
-  pageScrollContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    justifyContent: 'center',
-    marginBottom: 8,
+  communityStatusText: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 340,
+    lineHeight: 18,
   },
-  directoryIconContainer: {
-    alignItems: 'flex-end',
-    position: 'relative',
-  },
-  actionMenuBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  actionMenuWrapper: {
-    position: 'absolute',
-    top: 120,
-    right: 40,
-  },
-  actionMenuContainer: {
+  communityRetryButton: {
+    marginTop: 4,
     backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
-    elevation: 8,
-    minWidth: 160,
-  },
-  actionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    gap: 12,
   },
-  actionMenuIcon: {
-    fontSize: 18,
-  },
-  actionMenuText: {
+  communityRetryText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-  },
-  progressContainer: {
-    alignItems: 'center',
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    gap: 12,
-  },
-  pageLinesContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 32,
-    gap: 2,
-    paddingHorizontal: 12,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: theme.colors.borderStrong,
-    minWidth: 300,
-  },
-  pixelatedBlock: {
-    width: 10,
-    height: 22,
-    borderRadius: 2, // Small radius for pixelated look
-    borderWidth: 1,
-    transition: 'all 0.2s ease',
-  },
-  progressArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surfaceElevated,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.borderSubtle,
-    alignSelf: 'center', // Ensure arrows align with center of progress bar
-  },
-  progressArrowDisabled: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.borderSubtle,
-    opacity: 0.5,
-  },
-  progressArrowText: {
-    fontSize: 18,
-    color: theme.colors.textPrimary,
-    fontWeight: 'bold',
-  },
-  progressArrowTextDisabled: {
-    color: theme.colors.textMuted,
-  },
-  progressText: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
-  pageNumberContainer: {
-    alignItems: 'center',
-  },
-  pageNumberText: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-    fontWeight: '600',
   },
   chatContainer: {
     flex: 1,
@@ -1370,6 +1367,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
   },
+  errorBubble: {
+    borderColor: theme.colors.danger,
+  },
   aiLogoContainer: {
     marginRight: 8,
     marginTop: 2,
@@ -1377,6 +1377,9 @@ const styles = StyleSheet.create({
   aiLogo: {
     width: 24,
     height: 24,
+  },
+  messageContent: {
+    flex: 1,
   },
   messageText: {
     fontSize: 16,
@@ -1389,6 +1392,24 @@ const styles = StyleSheet.create({
   },
   aiText: {
     color: theme.colors.textSecondary,
+  },
+  boldText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
+  },
+  bulletLine: {
+    flexDirection: 'row',
+    marginTop: 2,
+  },
+  bulletDot: {
+    flex: 0,
+    marginRight: 8,
+  },
+  bulletTextContent: {
+    flex: 1,
+  },
+  blankLine: {
+    height: 8,
   },
   typingContainer: {
     flex: 1,
