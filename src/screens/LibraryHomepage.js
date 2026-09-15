@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,35 +7,45 @@ import {
   Modal,
   Alert,
   Image,
-  Animated,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import theme from '../constants/theme';
-import Bookshelf from '../components/Bookshelf';
+import ActiveBooksPanel from '../components/ActiveBooksPanel';
+import RecentQuestionsPanel from '../components/RecentQuestionsPanel';
 import AppHeader from '../components/AppHeader';
-import { loadBooks, addBook } from '../utils/BookStorage';
+import {
+  loadBooks,
+  addBook,
+  updateBook,
+  loadMessages,
+  loadRecentQuestions,
+} from '../utils/BookStorage';
 import { useAuth } from '../context/AuthContext';
 
 export default function Homepage({
   onNavigateToChat,
   onNavigateToSettings,
   onNavigateHome,
+  onNavigateToLibrary,
   pendingAddBook,
   onConsumePendingAddBook,
 }) {
   const { user } = useAuth();
+  const { width: windowWidth } = useWindowDimensions();
   const [books, setBooks] = useState([]);
+  const [recentQuestions, setRecentQuestions] = useState([]);
   const [pendingBook, setPendingBook] = useState(null);
   const [pageChapter, setPageChapter] = useState('');
   const [loading, setLoading] = useState(true);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const isNarrow = windowWidth < 640;
 
   useEffect(() => {
     if (user?.id) {
       loadBooksFromStorage();
+      loadRecentQuestions(user.id).then(setRecentQuestions);
     }
   }, [user?.id]);
 
@@ -50,7 +60,27 @@ export default function Homepage({
   const loadBooksFromStorage = async () => {
     try {
       const storedBooks = await loadBooks(user.id);
-      setBooks(storedBooks);
+
+      const activeBooks = storedBooks.filter(
+        book => book.status === 'currently_reading'
+      );
+      const lastMessages = await Promise.all(
+        activeBooks.map(book => loadMessages(book.id))
+      );
+      const lastMessageByBookId = {};
+      activeBooks.forEach((book, index) => {
+        const messages = lastMessages[index];
+        lastMessageByBookId[book.id] = messages?.length
+          ? messages[messages.length - 1].text
+          : null;
+      });
+
+      setBooks(
+        storedBooks.map(book => ({
+          ...book,
+          lastMessage: lastMessageByBookId[book.id] || null,
+        }))
+      );
     } catch (error) {
       console.error('Error loading books:', error);
       Alert.alert('Error', 'Failed to load your books');
@@ -59,21 +89,13 @@ export default function Homepage({
     }
   };
 
-  const animateToChat = book => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: false,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 600,
-        useNativeDriver: false,
-      }),
-    ]).start(() => {
-      onNavigateToChat(book);
-    });
+  const handleUpdateBookPage = async (bookId, newPage) => {
+    const updated = await updateBook(bookId, { currentPage: newPage });
+    setBooks(prevBooks =>
+      prevBooks.map(book =>
+        book.id === bookId ? { ...book, ...updated } : book
+      )
+    );
   };
 
   const handleSelectSearchBook = book => {
@@ -116,6 +138,7 @@ export default function Homepage({
       currentPage,
       chapter: 1,
       progress,
+      status: 'currently_reading',
       googleBooksId: pendingBook.id || null,
       thumbnail: pendingBook.thumbnail || null,
       description: pendingBook.description || '',
@@ -129,29 +152,16 @@ export default function Homepage({
       const addedBook = await addBook(newBook, user.id);
       setBooks(prevBooks => [addedBook, ...prevBooks]);
       closeProgressModal();
-      animateToChat(addedBook);
+      onNavigateToChat(addedBook);
     } catch (error) {
       console.error('Error adding book:', error);
       Alert.alert('Error', 'Failed to add book to your library');
     }
   };
 
-  useEffect(() => {
-    fadeAnim.setValue(1);
-    scaleAnim.setValue(1);
-  }, [fadeAnim, scaleAnim]);
-
   return (
     <View style={styles.appContainer}>
-      <Animated.View
-        style={[
-          styles.container,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
+      <View style={styles.container}>
         <AppHeader
           onSelectBook={handleSelectSearchBook}
           onNavigateHome={onNavigateHome}
@@ -164,10 +174,23 @@ export default function Homepage({
               <Text style={styles.loadingText}>Loading your bookshelf...</Text>
             </View>
           ) : (
-            <Bookshelf books={books} onPressBook={animateToChat} />
+            <View
+              style={[
+                styles.panelsRow,
+                isNarrow && styles.panelsRowNarrow,
+              ]}
+            >
+              <ActiveBooksPanel
+                books={books}
+                onPressBook={onNavigateToChat}
+                onViewLibrary={onNavigateToLibrary}
+                onUpdateBookPage={handleUpdateBookPage}
+              />
+              <RecentQuestionsPanel questions={recentQuestions} />
+            </View>
           )}
         </View>
-      </Animated.View>
+      </View>
 
       <Modal
         visible={!!pendingBook}
@@ -247,6 +270,15 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+  },
+  panelsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: theme.spacing.x2_5,
+    padding: theme.spacing.x2_5,
+  },
+  panelsRowNarrow: {
+    flexDirection: 'column',
   },
   loadingContainer: {
     flex: 1,

@@ -83,6 +83,21 @@ export const loadMessages = async bookId => {
   }
 };
 
+// Load recent questions (with their AI answers) across all of a user's books.
+export const loadRecentQuestions = async (userId, limit = 20) => {
+  try {
+    const response = await fetch(
+      `${BACKEND_BASE_URL}/api/messages/recent?user_id=${encodeURIComponent(userId)}&limit=${limit}`
+    );
+    await assertOk(response);
+    const data = await response.json();
+    return data.questions || [];
+  } catch (error) {
+    console.error('Error loading recent questions:', error);
+    return [];
+  }
+};
+
 // Persist one chat message (user or assistant) against a book.
 export const saveMessage = async (bookId, userId, message) => {
   try {

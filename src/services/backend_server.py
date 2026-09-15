@@ -645,6 +645,39 @@ async def list_messages(book_id: str, db: Session = Depends(get_db)):
     )
     return {"messages": [message_to_dict(m) for m in messages]}
 
+@app.get("/api/messages/recent")
+async def list_recent_questions(user_id: str, limit: int = 20, db: Session = Depends(get_db)):
+    """Recent user questions (with their next AI reply, if any) across all of a user's books."""
+    rows = (
+        db.query(db_models.Message, db_models.Book)
+        .join(db_models.Book, db_models.Message.book_id == db_models.Book.id)
+        .filter(db_models.Book.user_id == user_id, db_models.Message.is_user == True)
+        .order_by(db_models.Message.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    results = []
+    for message, book in rows:
+        answer = (
+            db.query(db_models.Message)
+            .filter(
+                db_models.Message.book_id == book.id,
+                db_models.Message.is_user == False,
+                db_models.Message.created_at > message.created_at,
+            )
+            .order_by(db_models.Message.created_at.asc())
+            .first()
+        )
+        results.append({
+            "id": message.id,
+            "question": message.text,
+            "answer": answer.text if answer else None,
+            "bookId": book.id,
+            "bookTitle": book.title,
+            "createdAt": message.created_at,
+        })
+    return {"questions": results}
+
 @app.post("/api/books/{book_id}/messages")
 async def create_message(book_id: str, request: CreateMessageRequest, db: Session = Depends(get_db)):
     """Append one message to a book's chat history."""

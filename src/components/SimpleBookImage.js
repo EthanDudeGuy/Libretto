@@ -28,8 +28,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   bookImage: {
-    width: 112,
-    height: 160,
+    width: 140,
+    height: 200,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',

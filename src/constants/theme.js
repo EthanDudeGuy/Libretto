@@ -42,11 +42,11 @@ export const colors = {
   orangeDark: '#e67e00', // Darker orange
   orangeLight: '#ff9f40', // Lighter orange
 
-  // Legacy Blue Colors (deprecated - use orange instead)
-  blue: '#fe8a1f', // Same as orange - kept for backward compatibility
-  blueMuted: 'rgba(254, 138, 31, 0.3)', // Same as orangeMuted
-  blueDark: '#e67e00', // Same as orangeDark
-  blueLight: '#ff9f40', // Same as orangeLight
+  // Blue Color System (secondary accent, used to offset orange)
+  blue: '#5b8def',
+  blueMuted: 'rgba(91, 141, 239, 0.3)',
+  blueDark: '#3d6bd1',
+  blueLight: '#7ea6f5',
 
   // Semantic (adapted for dark theme)
   success: '#10b981',

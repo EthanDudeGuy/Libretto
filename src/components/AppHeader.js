@@ -53,6 +53,20 @@ function LogoutIcon({ color = theme.colors.danger }) {
   );
 }
 
+function BackIcon({ color = theme.colors.textPrimary, size = 16 }) {
+  return (
+    <Svg width={size} height={size} viewBox='0 0 24 24' fill='none'>
+      <Path
+        d='M19 12H5M12 19l-7-7 7-7'
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </Svg>
+  );
+}
+
 function DuckIcon({ color = theme.colors.textPrimary, size = 18 }) {
   return (
     <Svg width={size} height={size} viewBox='0 0 24 24' fill='none'>
@@ -103,6 +117,7 @@ export default function AppHeader({
   onSelectBook,
   onNavigateHome,
   onNavigateSettings,
+  onBack,
 }) {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const { logout } = useAuth();
@@ -121,18 +136,29 @@ export default function AppHeader({
     <>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.headerLeft}
-            onPress={onNavigateHome}
-            activeOpacity={0.7}
-          >
-            <Image
-              source={require('../../assets/logo.png')}
-              style={styles.logo}
-              resizeMode='contain'
-            />
-            <Text style={styles.title}>Libretto</Text>
-          </TouchableOpacity>
+          <View style={styles.headerLeft}>
+            {onBack && (
+              <TouchableOpacity
+                style={styles.backIconButton}
+                onPress={onBack}
+                activeOpacity={0.7}
+              >
+                <BackIcon size={18} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.logoButton}
+              onPress={onNavigateHome}
+              activeOpacity={0.7}
+            >
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.logo}
+                resizeMode='contain'
+              />
+              <Text style={styles.title}>Libretto</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.headerCenter}>
             <BookSpotlightSearch onSelectBook={onSelectBook} />
@@ -215,7 +241,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flexShrink: 0,
-    width: 130,
+  },
+  logoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   headerCenter: {
     flex: 1,
@@ -231,6 +261,8 @@ const styles = StyleSheet.create({
   logo: {
     width: 28,
     height: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 18,
@@ -239,6 +271,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
   },
   userIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+  },
+  backIconButton: {
     width: 36,
     height: 36,
     borderRadius: 18,

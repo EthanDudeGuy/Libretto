@@ -11,6 +11,7 @@ import {
 import theme from './src/constants/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import LibraryHomepage from './src/screens/LibraryHomepage';
+import LibraryScreen from './src/screens/LibraryScreen';
 import BookChat from './src/screens/BookChat';
 import SettingsScreen from './src/screens/SettingsScreen';
 import LandingScreen from './src/screens/LandingScreen';
@@ -40,6 +41,11 @@ function AppContent() {
 
   const navigateToHomepage = () => {
     setCurrentView('homepage');
+    setSelectedBook(null);
+  };
+
+  const navigateToLibrary = () => {
+    setCurrentView('library');
     setSelectedBook(null);
   };
 
@@ -102,8 +108,16 @@ function AppContent() {
           onNavigateToChat={navigateToChat}
           onNavigateToSettings={navigateToSettings}
           onNavigateHome={navigateToHomepage}
+          onNavigateToLibrary={navigateToLibrary}
           pendingAddBook={pendingAddBook}
           onConsumePendingAddBook={() => setPendingAddBook(null)}
+        />
+      ) : currentView === 'library' ? (
+        <LibraryScreen
+          onBack={navigateToHomepage}
+          onNavigateHome={navigateToHomepage}
+          onNavigateSettings={navigateToSettings}
+          onSelectBook={navigateToChat}
         />
       ) : currentView === 'settings' ? (
         <SettingsScreen

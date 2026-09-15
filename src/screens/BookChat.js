@@ -105,35 +105,6 @@ const formatTrackingDate = isoString => {
   });
 };
 
-// Types out `text` one character at a time (used for the welcome message).
-// Module-scope hook, not a component: it only depends on its own params.
-function useTypingAnimation(text, speed = 30) {
-  const [displayedText, setDisplayedText] = useState('');
-  const [isComplete, setIsComplete] = useState(false);
-
-  useEffect(() => {
-    if (!text) return;
-
-    let index = 0;
-    setDisplayedText('');
-    setIsComplete(false);
-
-    const interval = setInterval(() => {
-      if (index < text.length) {
-        setDisplayedText(text.slice(0, index + 1));
-        index++;
-      } else {
-        setIsComplete(true);
-        clearInterval(interval);
-      }
-    }, speed);
-
-    return () => clearInterval(interval);
-  }, [text, speed]);
-
-  return { displayedText, isComplete };
-}
-
 // Compact radial indicator used to merge "progress" and "reading time" into
 // one glanceable widget instead of two separate text rows.
 function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
@@ -184,8 +155,6 @@ export default function BookChat({
   const [isTyping, setIsTyping] = useState(false);
   const [currentBook, setCurrentBook] = useState(book);
   const [activeTab, setActiveTab] = useState('chat');
-  const [isWelcomeTyping, setIsWelcomeTyping] = useState(false);
-  const [welcomeMessageText, setWelcomeMessageText] = useState('');
   const [backgroundColor, setBackgroundColor] = useState(theme.colors.surface);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -198,16 +167,12 @@ export default function BookChat({
   });
   const [pageInput, setPageInput] = useState(String(book.currentPage || 1));
   const [pageUpdateStatus, setPageUpdateStatus] = useState('idle'); // idle | saving | error
+  const [editingPage, setEditingPage] = useState(false);
   const scrollViewRef = useRef();
   const { user } = useAuth();
 
   // Animation values
   const pageFadeAnim = useRef(new Animated.Value(0)).current;
-  const logoPulseAnim = useRef(new Animated.Value(1)).current;
-  const dotsAnim1 = useRef(new Animated.Value(0)).current;
-  const dotsAnim2 = useRef(new Animated.Value(0)).current;
-  const dotsAnim3 = useRef(new Animated.Value(0)).current;
-  const cursorBlinkAnim = useRef(new Animated.Value(1)).current;
 
   // Short, plain opening line — no random one-liners, no name repetition.
   // This is client-generated (Claude never "said" it), so it's kept purely
@@ -285,83 +250,6 @@ export default function BookChat({
     }).start();
   }, [pageFadeAnim]);
 
-  // Animation for thinking state
-  useEffect(() => {
-    if (isTyping) {
-      // Start logo pulsing animation
-      const logoPulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(logoPulseAnim, {
-            toValue: 1.2,
-            duration: 800,
-            useNativeDriver: false,
-          }),
-          Animated.timing(logoPulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: false,
-          }),
-        ])
-      );
-
-      // Start dots animation with staggered timing
-      const dotsAnimation = Animated.loop(
-        Animated.stagger(200, [
-          Animated.sequence([
-            Animated.timing(dotsAnim1, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(dotsAnim1, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]),
-          Animated.sequence([
-            Animated.timing(dotsAnim2, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(dotsAnim2, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]),
-          Animated.sequence([
-            Animated.timing(dotsAnim3, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-            Animated.timing(dotsAnim3, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: false,
-            }),
-          ]),
-        ])
-      );
-
-      logoPulse.start();
-      dotsAnimation.start();
-
-      return () => {
-        logoPulse.stop();
-        dotsAnimation.stop();
-      };
-    } else {
-      // Reset animations when not typing
-      logoPulseAnim.setValue(1);
-      dotsAnim1.setValue(0);
-      dotsAnim2.setValue(0);
-      dotsAnim3.setValue(0);
-    }
-  }, [isTyping]);
-
   // Load this book's chat history on mount (and whenever the reader switches
   // to a different book — BookChat doesn't remount for that, just gets new
   // props). Only show the synthetic typed "welcome" opener when there's no
@@ -380,14 +268,11 @@ export default function BookChat({
       }
 
       const initialMessage = buildWelcomeMessage();
-      setWelcomeMessageText(initialMessage);
-      setIsWelcomeTyping(true);
 
-      // Start with an empty welcome message that will be animated
       setMessages([
         {
           id: 'welcome',
-          text: '',
+          text: initialMessage,
           isUser: false,
           timestamp: new Date(),
           isWelcomeMessage: true,
@@ -401,48 +286,6 @@ export default function BookChat({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBook.id]);
-
-  // Typing animation for welcome message
-  const { displayedText, isComplete } = useTypingAnimation(welcomeMessageText, 40);
-
-  // Update welcome message as it types
-  useEffect(() => {
-    if (displayedText && isWelcomeTyping) {
-      setMessages(prev => prev.map(msg => 
-        msg.isWelcomeMessage 
-          ? { ...msg, text: displayedText }
-          : msg
-      ));
-    }
-    
-    if (isComplete && isWelcomeTyping) {
-      setIsWelcomeTyping(false);
-    }
-  }, [displayedText, isComplete, isWelcomeTyping]);
-
-  // Cursor blinking animation for typing
-  useEffect(() => {
-    if (isWelcomeTyping) {
-      const blinkAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(cursorBlinkAnim, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: false,
-          }),
-          Animated.timing(cursorBlinkAnim, {
-            toValue: 1,
-            duration: 500,
-            useNativeDriver: false,
-          }),
-        ])
-      );
-      blinkAnimation.start();
-      return () => blinkAnimation.stop();
-    } else {
-      cursorBlinkAnim.setValue(1);
-    }
-  }, [isWelcomeTyping, cursorBlinkAnim]);
 
   // Returns { text, isError } so the message bubble can be styled
   // differently when the request failed, instead of looking like a normal reply.
@@ -569,10 +412,17 @@ export default function BookChat({
       setCurrentBook(updated);
       setPageInput(String(updated.currentPage));
       setPageUpdateStatus('idle');
+      setEditingPage(false);
     } catch (error) {
       logError(error, 'Updating current page');
       setPageUpdateStatus('error');
     }
+  };
+
+  const handleCancelPageEdit = () => {
+    setPageInput(String(currentBook.currentPage || 1));
+    setPageUpdateStatus('idle');
+    setEditingPage(false);
   };
 
   const loadCommunityResources = async () => {
@@ -670,16 +520,6 @@ export default function BookChat({
               ]}
             >
               {message.text}
-              {message.isWelcomeMessage && isWelcomeTyping && (
-                <Animated.Text
-                  style={[
-                    styles.typingCursor,
-                    { opacity: cursorBlinkAnim },
-                  ]}
-                >
-                  |
-                </Animated.Text>
-              )}
             </Text>
           ) : (
             renderFormattedText(message.text, [styles.messageText, styles.aiText])
@@ -739,6 +579,7 @@ export default function BookChat({
         onSelectBook={onSelectBook}
         onNavigateHome={onNavigateHome ?? onBack}
         onNavigateSettings={onNavigateSettings}
+        onBack={onBack}
       />
 
       <Animated.View
@@ -753,17 +594,8 @@ export default function BookChat({
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-        {/* Top Bar: Back Button, Book Title/Author, and Progress — always visible, sits on the banner */}
+        {/* Top Bar: Book Title/Author and Progress — always visible, sits on the banner */}
         <View style={styles.topBar}>
-          <View style={styles.topBarLeft}>
-            <TouchableOpacity
-              style={styles.backButtonModal}
-              onPress={onBack}
-            >
-              <Text style={styles.backButtonText}>← Library</Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.topBarCenter}>
             <Text style={styles.topBarTitle} numberOfLines={1}>
               {currentBook.title}
@@ -885,6 +717,54 @@ export default function BookChat({
                 <Text style={styles.statsValue}>{readingTimeLabel}</Text>
               </View>
             </View>
+
+            {editingPage ? (
+              <View style={styles.pageUpdateRow}>
+                <TextInput
+                  style={styles.pageUpdateInput}
+                  value={pageInput}
+                  onChangeText={text => {
+                    setPageInput(text.replace(/[^0-9]/g, ''));
+                    if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
+                  }}
+                  keyboardType='number-pad'
+                  placeholder='Page'
+                  placeholderTextColor={theme.colors.textMuted}
+                  autoFocus
+                  maxLength={6}
+                  onSubmitEditing={handleUpdateCurrentPage}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.pageUpdateButton,
+                    pageUpdateStatus === 'saving' && styles.pageUpdateButtonDisabled,
+                  ]}
+                  onPress={handleUpdateCurrentPage}
+                  disabled={pageUpdateStatus === 'saving'}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.pageUpdateButtonText}>
+                    {pageUpdateStatus === 'saving' ? 'Saving...' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCancelPageEdit} activeOpacity={0.7}>
+                  <Text style={styles.updatePageLinkText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.updatePageLink}
+                onPress={() => setEditingPage(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.updatePageLinkText}>Update page</Text>
+              </TouchableOpacity>
+            )}
+            {pageUpdateStatus === 'error' && (
+              <Text style={styles.pageUpdateError}>
+                Enter a page between 1 and {currentBook.totalPages || '?'}.
+              </Text>
+            )}
 
             {/* Everything else is secondary — tucked behind a toggle so it
                 doesn't compete visually with the cover, byline, and progress. */}
@@ -1150,53 +1030,17 @@ export default function BookChat({
                 {isTyping && (
                   <View style={[styles.messageContainer, styles.aiMessage]}>
                     <View style={[styles.messageBubble, styles.aiBubble]}>
-                      <Animated.View
-                        style={[
-                          styles.aiLogoContainer,
-                          {
-                            transform: [{ scale: logoPulseAnim }],
-                          },
-                        ]}
-                      >
+                      <View style={styles.aiLogoContainer}>
                         <Image
                           source={require('../../assets/duckbill.png')}
                           style={styles.aiLogo}
                           resizeMode='contain'
                         />
-                      </Animated.View>
+                      </View>
                       <View style={styles.typingContainer}>
                         <Text style={styles.typingText}>
                           Waddle is thinking
                         </Text>
-                        <View style={styles.dotsContainer}>
-                          <Animated.View
-                            style={[
-                              styles.thinkingDot,
-                              {
-                                opacity: dotsAnim1,
-                                transform: [{ scale: dotsAnim1 }],
-                              },
-                            ]}
-                          />
-                          <Animated.View
-                            style={[
-                              styles.thinkingDot,
-                              {
-                                opacity: dotsAnim2,
-                                transform: [{ scale: dotsAnim2 }],
-                              },
-                            ]}
-                          />
-                          <Animated.View
-                            style={[
-                              styles.thinkingDot,
-                              {
-                                opacity: dotsAnim3,
-                                transform: [{ scale: dotsAnim3 }],
-                              },
-                            ]}
-                          />
-                        </View>
                       </View>
                     </View>
                   </View>
@@ -1274,9 +1118,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 16,
   },
-  topBarLeft: {
-    alignItems: 'flex-start',
-  },
   topBarCenter: {
     flex: 1,
     minWidth: 0,
@@ -1293,22 +1134,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     marginTop: 2,
   },
-  backButtonModal: {
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.25)',
-    elevation: 4,
-  },
-  backButtonText: {
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Inter_600SemiBold',
-  },
   mainContent: {
     flex: 1,
     flexDirection: 'row',
@@ -1316,7 +1141,7 @@ const styles = StyleSheet.create({
   },
   // Left Column Styles
   leftColumn: {
-    width: 148,
+    width: 180,
     flexGrow: 0,
     flexShrink: 0,
   },
@@ -1464,6 +1289,16 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
+  },
+  updatePageLink: {
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  updatePageLinkText: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    textDecorationLine: 'underline',
   },
   moreDetailsSection: {
     marginTop: 2,
@@ -1779,7 +1614,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   userBubble: {
-    backgroundColor: theme.colors.orange,
+    backgroundColor: theme.colors.blue,
     borderBottomRightRadius: 4,
     borderWidth: 0,
   },
@@ -1844,23 +1679,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontStyle: 'italic',
     marginRight: 8,
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  thinkingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.textMuted,
-  },
-  typingCursor: {
-    color: theme.colors.blue,
-    fontSize: 16,
-    fontWeight: 'bold',
-    opacity: 1,
   },
   inputContainer: {
     flexDirection: 'row',
