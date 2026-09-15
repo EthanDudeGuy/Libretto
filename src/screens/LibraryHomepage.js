@@ -39,6 +39,8 @@ export default function Homepage({
   const [recentQuestions, setRecentQuestions] = useState([]);
   const [pendingBook, setPendingBook] = useState(null);
   const [pageChapter, setPageChapter] = useState('');
+  const [addBookError, setAddBookError] = useState(null);
+  const [isAddingBook, setIsAddingBook] = useState(false);
   const [loading, setLoading] = useState(true);
   const isNarrow = windowWidth < 640;
 
@@ -53,6 +55,7 @@ export default function Homepage({
     if (pendingAddBook) {
       setPendingBook(pendingAddBook);
       setPageChapter('');
+      setAddBookError(null);
       onConsumePendingAddBook?.();
     }
   }, [pendingAddBook]);
@@ -101,11 +104,13 @@ export default function Homepage({
   const handleSelectSearchBook = book => {
     setPendingBook(book);
     setPageChapter('');
+    setAddBookError(null);
   };
 
   const closeProgressModal = () => {
     setPendingBook(null);
     setPageChapter('');
+    setAddBookError(null);
   };
 
   const handleConfirmAddBook = async () => {
@@ -114,14 +119,13 @@ export default function Homepage({
     }
 
     if (!pageChapter.trim()) {
-      Alert.alert('Error', 'Please enter your current page or chapter');
+      setAddBookError('Please enter your current page or chapter.');
       return;
     }
 
     const totalPages = pendingBook.pageCount || null;
     if (!totalPages || totalPages <= 0) {
-      Alert.alert(
-        'Page Count Not Available',
+      setAddBookError(
         'This book does not have page count information. Please try a different edition.'
       );
       return;
@@ -148,6 +152,8 @@ export default function Homepage({
       publisher: pendingBook.publisher || '',
     };
 
+    setAddBookError(null);
+    setIsAddingBook(true);
     try {
       const addedBook = await addBook(newBook, user.id);
       setBooks(prevBooks => [addedBook, ...prevBooks]);
@@ -155,7 +161,11 @@ export default function Homepage({
       onNavigateToChat(addedBook);
     } catch (error) {
       console.error('Error adding book:', error);
-      Alert.alert('Error', 'Failed to add book to your library');
+      setAddBookError(
+        'Failed to add book to your library. Is the backend server running?'
+      );
+    } finally {
+      setIsAddingBook(false);
     }
   };
 
@@ -230,7 +240,12 @@ export default function Homepage({
             <TextInput
               style={styles.progressInput}
               value={pageChapter}
-              onChangeText={setPageChapter}
+              onChangeText={text => {
+                setPageChapter(text);
+                if (addBookError) {
+                  setAddBookError(null);
+                }
+              }}
               placeholder='Page or chapter (e.g. 42)'
               placeholderTextColor={theme.colors.textMuted}
               keyboardType='number-pad'
@@ -238,6 +253,9 @@ export default function Homepage({
               returnKeyType='done'
               onSubmitEditing={handleConfirmAddBook}
             />
+            {addBookError && (
+              <Text style={styles.progressErrorText}>{addBookError}</Text>
+            )}
             <View style={styles.progressActions}>
               <TouchableOpacity
                 style={styles.progressCancel}
@@ -246,10 +264,16 @@ export default function Homepage({
                 <Text style={styles.progressCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.progressConfirm}
+                style={[
+                  styles.progressConfirm,
+                  isAddingBook && styles.progressConfirmDisabled,
+                ]}
                 onPress={handleConfirmAddBook}
+                disabled={isAddingBook}
               >
-                <Text style={styles.progressConfirmText}>Start reading</Text>
+                <Text style={styles.progressConfirmText}>
+                  {isAddingBook ? 'Adding…' : 'Start reading'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -355,6 +379,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     outlineStyle: 'none',
   },
+  progressErrorText: {
+    color: theme.colors.danger,
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    marginTop: -4,
+  },
   progressActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -375,6 +405,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: theme.radii.sm,
+  },
+  progressConfirmDisabled: {
+    opacity: 0.6,
   },
   progressConfirmText: {
     color: theme.colors.textPrimary,

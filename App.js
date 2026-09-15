@@ -118,6 +118,7 @@ function AppContent() {
           onNavigateHome={navigateToHomepage}
           onNavigateSettings={navigateToSettings}
           onSelectBook={navigateToChat}
+          onSearchAddBook={handleSelectBookFromSettings}
         />
       ) : currentView === 'settings' ? (
         <SettingsScreen

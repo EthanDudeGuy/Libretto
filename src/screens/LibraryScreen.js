@@ -17,6 +17,7 @@ export default function LibraryScreen({
   onNavigateHome,
   onNavigateSettings,
   onSelectBook,
+  onSearchAddBook,
 }) {
   const { user } = useAuth();
   const [books, setBooks] = useState([]);
@@ -52,6 +53,7 @@ export default function LibraryScreen({
         onNavigateHome={onNavigateHome ?? onBack}
         onNavigateSettings={onNavigateSettings}
         onBack={onBack}
+        onSelectBook={onSearchAddBook}
       />
 
       <View style={styles.tabBarOuter}>

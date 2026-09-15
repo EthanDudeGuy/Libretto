@@ -620,6 +620,62 @@ export default function BookChat({
               <SimpleBookImage book={currentBook} />
             </View>
 
+            {/* Update page — the single most-used action while reading, so
+                it sits front and center right under the cover. */}
+            {editingPage ? (
+              <View style={styles.pageUpdateRow}>
+                <TextInput
+                  style={styles.pageUpdateInput}
+                  value={pageInput}
+                  onChangeText={text => {
+                    setPageInput(text.replace(/[^0-9]/g, ''));
+                    if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
+                  }}
+                  keyboardType='number-pad'
+                  placeholder='Page'
+                  placeholderTextColor={theme.colors.textMuted}
+                  autoFocus
+                  maxLength={6}
+                  onSubmitEditing={handleUpdateCurrentPage}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.pageUpdateButton,
+                    pageUpdateStatus === 'saving' && styles.pageUpdateButtonDisabled,
+                  ]}
+                  onPress={handleUpdateCurrentPage}
+                  disabled={pageUpdateStatus === 'saving'}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.pageUpdateButtonText}>
+                    {pageUpdateStatus === 'saving' ? 'Saving...' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCancelPageEdit} activeOpacity={0.7}>
+                  <Text style={styles.updatePageLinkText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.updatePageButton}
+                onPress={() => setEditingPage(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.updatePageButtonText}>
+                  {currentBook.currentPage
+                    ? `Update Page  ·  ${currentBook.currentPage}${
+                        currentBook.totalPages ? ` / ${currentBook.totalPages}` : ''
+                      }`
+                    : 'Set Current Page'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {pageUpdateStatus === 'error' && (
+              <Text style={styles.pageUpdateError}>
+                Enter a page between 1 and {currentBook.totalPages || '?'}.
+              </Text>
+            )}
+
             {/* Reading status + rating — a manually-set shelf, shown right
                 under the cover so it's the first thing you can act on. */}
             <View style={styles.statusSection}>
@@ -717,54 +773,6 @@ export default function BookChat({
                 <Text style={styles.statsValue}>{readingTimeLabel}</Text>
               </View>
             </View>
-
-            {editingPage ? (
-              <View style={styles.pageUpdateRow}>
-                <TextInput
-                  style={styles.pageUpdateInput}
-                  value={pageInput}
-                  onChangeText={text => {
-                    setPageInput(text.replace(/[^0-9]/g, ''));
-                    if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
-                  }}
-                  keyboardType='number-pad'
-                  placeholder='Page'
-                  placeholderTextColor={theme.colors.textMuted}
-                  autoFocus
-                  maxLength={6}
-                  onSubmitEditing={handleUpdateCurrentPage}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.pageUpdateButton,
-                    pageUpdateStatus === 'saving' && styles.pageUpdateButtonDisabled,
-                  ]}
-                  onPress={handleUpdateCurrentPage}
-                  disabled={pageUpdateStatus === 'saving'}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.pageUpdateButtonText}>
-                    {pageUpdateStatus === 'saving' ? 'Saving...' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleCancelPageEdit} activeOpacity={0.7}>
-                  <Text style={styles.updatePageLinkText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.updatePageLink}
-                onPress={() => setEditingPage(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.updatePageLinkText}>Update page</Text>
-              </TouchableOpacity>
-            )}
-            {pageUpdateStatus === 'error' && (
-              <Text style={styles.pageUpdateError}>
-                Enter a page between 1 and {currentBook.totalPages || '?'}.
-              </Text>
-            )}
 
             {/* Everything else is secondary — tucked behind a toggle so it
                 doesn't compete visually with the cover, byline, and progress. */}
@@ -1104,11 +1112,13 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     flex: 1,
+    minHeight: 0,
     paddingLeft: 16,
     paddingRight: 16,
   },
   keyboardView: {
     flex: 1,
+    minHeight: 0,
   },
   topBar: {
     flexDirection: 'row',
@@ -1136,6 +1146,7 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    minHeight: 0,
     flexDirection: 'row',
     paddingTop: 0,
   },
@@ -1290,9 +1301,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
   },
-  updatePageLink: {
-    alignSelf: 'flex-start',
+  updatePageButton: {
+    backgroundColor: theme.colors.orange,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 10,
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.25)',
+  },
+  updatePageButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
   },
   updatePageLinkText: {
     color: theme.colors.textSecondary,
@@ -1364,6 +1385,7 @@ const styles = StyleSheet.create({
   // Right Column Styles
   rightColumn: {
     flex: 1,
+    minHeight: 0,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
@@ -1548,7 +1570,7 @@ const styles = StyleSheet.create({
   pageUpdateRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 10,
+    marginBottom: 10,
   },
   pageUpdateInput: {
     width: 90,
@@ -1584,16 +1606,17 @@ const styles = StyleSheet.create({
   },
   chatContainer: {
     flex: 1,
+    minHeight: 0,
     position: 'relative',
     backgroundColor: theme.colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.colors.borderStrong,
     overflow: 'hidden',
-    minHeight: 400,
   },
   messagesContainer: {
     flex: 1,
+    minHeight: 0,
     paddingHorizontal: 16,
   },
   messagesContent: {
