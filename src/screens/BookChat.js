@@ -15,7 +15,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import theme from '../constants/theme';
-import { updateBook, calculateProgress, loadMessages, saveMessage } from '../utils/BookStorage';
+import {
+  updateBook,
+  calculateProgress,
+  loadMessages,
+  saveMessage,
+  loadBookHistory,
+} from '../utils/BookStorage';
 import SimpleBookImage from '../components/SimpleBookImage';
 import AppHeader from '../components/AppHeader';
 import { sendMessageToClaude, getCommunityResources } from '../services/ClaudeAPI';
@@ -105,6 +111,28 @@ const formatTrackingDate = isoString => {
   });
 };
 
+// Turns one raw { field, oldValue, newValue } history event into the
+// human-readable line shown in the History tab's change log.
+function describeHistoryEvent(event) {
+  const { field, oldValue, newValue } = event;
+  switch (field) {
+    case 'currentPage':
+      return oldValue
+        ? `Progress updated to page ${newValue} (from page ${oldValue})`
+        : `Progress updated to page ${newValue}`;
+    case 'status':
+      return `Marked as "${getStatusOption(newValue).label}"`;
+    case 'rating':
+      return newValue
+        ? `Rated ${newValue} star${newValue === 1 ? '' : 's'}`
+        : 'Rating removed';
+    case 'finishedAt':
+      return newValue ? 'Marked as finished' : 'Marked as still reading';
+    default:
+      return `Updated ${field}`;
+  }
+}
+
 // Compact radial indicator used to merge "progress" and "reading time" into
 // one glanceable widget instead of two separate text rows.
 function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
@@ -162,6 +190,13 @@ export default function BookChat({
   const [communityState, setCommunityState] = useState({
     status: 'idle',
     sources: [],
+    error: null,
+    bookId: null,
+  });
+  // status: 'idle' | 'loading' | 'success' | 'error'
+  const [historyState, setHistoryState] = useState({
+    status: 'idle',
+    events: [],
     error: null,
     bookId: null,
   });
@@ -381,6 +416,7 @@ export default function BookChat({
     try {
       const updated = await updateBook(currentBook.id, { status: statusValue });
       setCurrentBook(updated);
+      if (activeTab === 'history') loadHistoryEvents();
     } catch (error) {
       logError(error, 'Updating book status');
     }
@@ -392,6 +428,7 @@ export default function BookChat({
     try {
       const updated = await updateBook(currentBook.id, { rating: newRating });
       setCurrentBook(updated);
+      if (activeTab === 'history') loadHistoryEvents();
     } catch (error) {
       logError(error, 'Updating book rating');
     }
@@ -413,6 +450,7 @@ export default function BookChat({
       setPageInput(String(updated.currentPage));
       setPageUpdateStatus('idle');
       setEditingPage(false);
+      if (activeTab === 'history') loadHistoryEvents();
     } catch (error) {
       logError(error, 'Updating current page');
       setPageUpdateStatus('error');
@@ -424,6 +462,21 @@ export default function BookChat({
     setPageUpdateStatus('idle');
     setEditingPage(false);
   };
+
+  const loadHistoryEvents = async () => {
+    setHistoryState({ status: 'loading', events: [], error: null, bookId: currentBook.id });
+    // loadBookHistory never throws — it logs and resolves to [] on failure —
+    // so an empty result here just renders as "no updates yet."
+    const events = await loadBookHistory(currentBook.id);
+    setHistoryState({ status: 'success', events, error: null, bookId: currentBook.id });
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'history') return;
+    if (historyState.bookId === currentBook.id && historyState.status !== 'idle') return;
+    loadHistoryEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentBook.id]);
 
   const loadCommunityResources = async () => {
     setCommunityState({ status: 'loading', sources: [], error: null, bookId: currentBook.id });
@@ -1001,6 +1054,28 @@ export default function BookChat({
                       </Text>
                     </View>
                   </View>
+
+                  <View style={styles.historyDivider} />
+
+                  <Text style={styles.historySectionTitle}>Update history</Text>
+                  {historyState.status === 'loading' ? (
+                    <ActivityIndicator color={theme.colors.textMuted} style={styles.historyLogLoading} />
+                  ) : historyState.status === 'error' ? (
+                    <Text style={styles.historyEmptyText}>{historyState.error}</Text>
+                  ) : historyState.events.length === 0 ? (
+                    <Text style={styles.historyEmptyText}>
+                      No tracking updates yet — changes you make here will show up as a log.
+                    </Text>
+                  ) : (
+                    historyState.events.map(event => (
+                      <View key={event.id} style={styles.historyLogRow}>
+                        <Text style={styles.historyLogText}>{describeHistoryEvent(event)}</Text>
+                        <Text style={styles.historyLogDate}>
+                          {formatTrackingDate(event.createdAt) || ''}
+                        </Text>
+                      </View>
+                    ))
+                  )}
                 </ScrollView>
               </View>
             ) : activeTab !== 'chat' ? (
@@ -1544,6 +1619,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
+  },
+  historySectionTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  historyLogLoading: {
+    marginVertical: 12,
+  },
+  historyEmptyText: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textMuted,
+    lineHeight: 18,
+  },
+  historyLogRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+  },
+  historyLogText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.textPrimary,
+  },
+  historyLogDate: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textMuted,
   },
   pageUpdateRow: {
     flexDirection: 'row',

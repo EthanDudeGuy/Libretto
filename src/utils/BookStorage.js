@@ -70,6 +70,19 @@ export const updateBook = async (bookId, updates) => {
   }
 };
 
+// Load a book's tracking change log (page/status/rating/finished updates), newest first.
+export const loadBookHistory = async bookId => {
+  try {
+    const response = await fetch(`${BOOKS_ENDPOINT}/${bookId}/history`);
+    await assertOk(response);
+    const data = await response.json();
+    return data.events || [];
+  } catch (error) {
+    console.error('Error loading book history:', error);
+    return [];
+  }
+};
+
 // Load a book's chat history, oldest first.
 export const loadMessages = async bookId => {
   try {

@@ -166,6 +166,39 @@ def apply_book_fields(book: db_models.Book, fields: Dict[str, Any]) -> None:
             extra[key] = value
     book.extra = extra
 
+# Fields whose changes are worth a track-changes entry — the ones a reader
+# actively updates while tracking their reading. Metadata fields (title,
+# thumbnail, etc.) are set once at creation and would just add noise.
+TRACKED_HISTORY_FIELDS = {"currentPage", "status", "rating", "finishedAt"}
+
+def snapshot_tracked_fields(book: db_models.Book) -> Dict[str, Any]:
+    return {field: getattr(book, BOOK_FIELD_MAP[field]) for field in TRACKED_HISTORY_FIELDS}
+
+def record_history_events(db: Session, book: db_models.Book, before: Dict[str, Any]) -> None:
+    """Diff `before` (a snapshot taken prior to applying updates) against the
+    book's current values and insert one event per tracked field that changed."""
+    for field in TRACKED_HISTORY_FIELDS:
+        old_value = before[field]
+        new_value = getattr(book, BOOK_FIELD_MAP[field])
+        if old_value == new_value:
+            continue
+        db.add(db_models.BookHistoryEvent(
+            book_id=book.id,
+            user_id=book.user_id,
+            field=field,
+            old_value=json.dumps(old_value),
+            new_value=json.dumps(new_value),
+        ))
+
+def history_event_to_dict(event: db_models.BookHistoryEvent) -> Dict[str, Any]:
+    return {
+        "id": event.id,
+        "field": event.field,
+        "oldValue": json.loads(event.old_value) if event.old_value is not None else None,
+        "newValue": json.loads(event.new_value) if event.new_value is not None else None,
+        "createdAt": event.created_at,
+    }
+
 def message_to_dict(message: db_models.Message) -> Dict[str, Any]:
     return {
         "id": message.id,
@@ -617,6 +650,8 @@ async def update_book(book_id: str, request: UpdateBookRequest, db: Session = De
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
 
+    before = snapshot_tracked_fields(book)
+
     apply_book_fields(book, request.updates)
 
     if "currentPage" in request.updates and book.total_pages:
@@ -630,9 +665,22 @@ async def update_book(book_id: str, request: UpdateBookRequest, db: Session = De
         else:
             book.finished_at = None
 
+    record_history_events(db, book, before)
+
     db.commit()
     db.refresh(book)
     return book_to_dict(book)
+
+@app.get("/api/books/{book_id}/history")
+async def list_book_history(book_id: str, db: Session = Depends(get_db)):
+    """List a book's tracking change log, most recent first."""
+    events = (
+        db.query(db_models.BookHistoryEvent)
+        .filter(db_models.BookHistoryEvent.book_id == book_id)
+        .order_by(db_models.BookHistoryEvent.created_at.desc())
+        .all()
+    )
+    return {"events": [history_event_to_dict(e) for e in events]}
 
 @app.get("/api/books/{book_id}/messages")
 async def list_messages(book_id: str, db: Session = Depends(get_db)):

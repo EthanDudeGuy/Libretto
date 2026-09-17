@@ -63,6 +63,29 @@ class Book(Base):
     updated_at = Column(String, default=now_iso, onupdate=now_iso)
 
     messages = relationship("Message", back_populates="book", cascade="all, delete-orphan")
+    history_events = relationship(
+        "BookHistoryEvent", back_populates="book", cascade="all, delete-orphan"
+    )
+
+
+class BookHistoryEvent(Base):
+    """One row per tracked-field change on a book (page, status, rating,
+    finished date) — a track-changes log for the History tab, distinct from
+    the point-in-time snapshot already stored on `Book` itself."""
+
+    __tablename__ = "book_history_events"
+
+    id = Column(String, primary_key=True, default=new_id)
+    book_id = Column(String, ForeignKey("books.id"), nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+
+    field = Column(String, nullable=False)  # camelCase field name, e.g. "currentPage"
+    old_value = Column(Text, nullable=True)  # JSON-encoded
+    new_value = Column(Text, nullable=True)  # JSON-encoded
+
+    created_at = Column(String, default=now_iso)
+
+    book = relationship("Book", back_populates="history_events")
 
 
 class Message(Base):
@@ -82,3 +105,4 @@ class Message(Base):
 
 
 Index("ix_messages_book_created", Message.book_id, Message.created_at)
+Index("ix_history_book_created", BookHistoryEvent.book_id, BookHistoryEvent.created_at)
