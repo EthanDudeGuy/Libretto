@@ -14,8 +14,9 @@ import os
 import re
 from dotenv import load_dotenv
 
-from database import Base, engine, get_db
+from database import Base, engine, get_db, SessionLocal
 import db_models
+from catalog_seed import seed_catalog
 
 load_dotenv()
 
@@ -26,6 +27,11 @@ app = FastAPI(title="Book Agent API", version="1.0.0")
 # SQLite/dev — a real Postgres deployment would use proper migrations
 # (e.g. Alembic) instead of this, but this keeps local setup to zero steps.
 Base.metadata.create_all(bind=engine)
+
+# Hardcoded seed for the catalog (Information tab) tables — a stand-in for
+# the real ingestion pipeline. No-ops once catalog books already exist.
+with SessionLocal() as _seed_db:
+    seed_catalog(_seed_db)
 
 # CRITICAL: Enable CORS - This is what fixes the browser error
 app.add_middleware(
@@ -744,6 +750,112 @@ async def create_message(book_id: str, request: CreateMessageRequest, db: Sessio
     db.commit()
     db.refresh(message)
     return message_to_dict(message)
+
+def catalog_book_to_dict(book: db_models.CatalogBook) -> Dict[str, Any]:
+    """Serialize a CatalogBook (+ its author/series) for the Information tab."""
+    return {
+        "id": book.id,
+        "title": book.title,
+        "authorId": book.author_id,
+        "author": {"id": book.author.id, "name": book.author.name, "bio": book.author.bio}
+        if book.author
+        else None,
+        "seriesId": book.series_id,
+        "series": {
+            "id": book.series.id,
+            "name": book.series.name,
+            "bookIds": [b.id for b in book.series.books],
+        }
+        if book.series
+        else None,
+        "seriesPosition": book.series_position,
+        "publicationDate": book.publication_date,
+        "originalLanguage": book.original_language,
+        "genres": book.genres or [],
+        "synopsis": book.synopsis,
+        "howItWasWritten": book.how_it_was_written,
+        "historicalContext": book.historical_context,
+        "receptionAndLegacy": book.reception_and_legacy,
+        "contentStatus": book.content_status or db_models.default_content_status(),
+        "createdAt": book.created_at,
+        "updatedAt": book.updated_at,
+    }
+
+
+def related_content_to_dict(item: db_models.RelatedContent) -> Dict[str, Any]:
+    return {
+        "id": item.id,
+        "bookId": item.book_id,
+        "title": item.title,
+        "type": item.type,
+        "url": item.url,
+        "description": item.description,
+        "source": item.source,
+        "publicationDate": item.publication_date,
+        "thumbnailUrl": item.thumbnail_url,
+    }
+
+
+@app.get("/api/catalog/books/by-title/{title}")
+async def get_catalog_book_by_title(title: str, db: Session = Depends(get_db)):
+    """Case-insensitive exact-title lookup. Stand-in for real linking (ISBN /
+    google_books_id) until the ingestion pipeline writes that association —
+    lets the frontend find a seeded catalog record for a library book that
+    was added independently, by title alone."""
+    book = (
+        db.query(db_models.CatalogBook)
+        .filter(db_models.CatalogBook.title.ilike(title))
+        .first()
+    )
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return catalog_book_to_dict(book)
+
+
+@app.get("/api/catalog/books/{book_id}")
+async def get_catalog_book(book_id: str, db: Session = Depends(get_db)):
+    """Full catalog record for the Information tab — metadata, narrative
+    sections, and per-section content_status. Reads only; never calls the LLM."""
+    book = db.query(db_models.CatalogBook).filter(db_models.CatalogBook.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return catalog_book_to_dict(book)
+
+
+@app.get("/api/catalog/books/{book_id}/related-content")
+async def get_related_content(book_id: str, db: Session = Depends(get_db)):
+    """Adaptations, articles, podcasts, etc. for a catalog book, grouped by type."""
+    book = db.query(db_models.CatalogBook).filter(db_models.CatalogBook.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    items = (
+        db.query(db_models.RelatedContent)
+        .filter(db_models.RelatedContent.book_id == book_id)
+        .order_by(db_models.RelatedContent.publication_date.desc())
+        .all()
+    )
+    grouped: Dict[str, List[Dict[str, Any]]] = {t: [] for t in db_models.RELATED_CONTENT_TYPES}
+    for item in items:
+        grouped.setdefault(item.type, []).append(related_content_to_dict(item))
+    return {"relatedContent": grouped}
+
+
+@app.post("/api/catalog/books/{book_id}/ingest")
+async def ingest_catalog_book(book_id: str, db: Session = Depends(get_db)):
+    """Internal/admin trigger for the research pipeline. Stubbed for now: the
+    real pipeline (metadata resolution + LLM research job + related-content
+    job) isn't wired up yet, so this just marks every section 'researching'
+    so the frontend can exercise that state."""
+    book = db.query(db_models.CatalogBook).filter(db_models.CatalogBook.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    book.content_status = {section: "researching" for section in db_models.CONTENT_SECTIONS}
+    db.commit()
+    db.refresh(book)
+    return catalog_book_to_dict(book)
+
 
 @app.get("/api/health")
 async def health_check():

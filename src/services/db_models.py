@@ -106,3 +106,121 @@ class Message(Base):
 
 Index("ix_messages_book_created", Message.book_id, Message.created_at)
 Index("ix_history_book_created", BookHistoryEvent.book_id, BookHistoryEvent.created_at)
+
+
+# --- Catalog (Information tab) -------------------------------------------
+#
+# Separate from `Book` above: `Book` is a per-user library entry (one row per
+# user per book, tracking their own progress/status). The classes below are
+# the shared, canonical catalog — one row per real-world book, generated
+# once by the research pipeline and served read-only to every user. They're
+# named `CatalogBook`/`CatalogAuthor`/`CatalogSeries` to avoid colliding with
+# the existing per-user `Book`; table names stay under `catalog_*` for the
+# same reason.
+
+CONTENT_SECTIONS = ("synopsis", "how_it_was_written", "historical_context", "reception_and_legacy")
+CONTENT_STATUSES = ("pending", "researching", "ready")
+
+RELATED_CONTENT_TYPES = (
+    "adaptation_film",
+    "adaptation_tv",
+    "adaptation_stage",
+    "documentary",
+    "podcast",
+    "article",
+    "essay",
+    "academic",
+    "interview",
+    "video",
+)
+
+
+def default_content_status():
+    return {section: "pending" for section in CONTENT_SECTIONS}
+
+
+class CatalogAuthor(Base):
+    __tablename__ = "catalog_authors"
+
+    id = Column(String, primary_key=True, default=new_id)
+    name = Column(String, nullable=False)
+    bio = Column(Text, nullable=True)
+
+    created_at = Column(String, default=now_iso)
+    updated_at = Column(String, default=now_iso, onupdate=now_iso)
+
+    books = relationship("CatalogBook", back_populates="author")
+
+
+class CatalogSeries(Base):
+    __tablename__ = "catalog_series"
+
+    id = Column(String, primary_key=True, default=new_id)
+    name = Column(String, nullable=False)
+
+    created_at = Column(String, default=now_iso)
+    updated_at = Column(String, default=now_iso, onupdate=now_iso)
+
+    books = relationship(
+        "CatalogBook", back_populates="series", order_by="CatalogBook.series_position"
+    )
+
+
+class CatalogBook(Base):
+    """A canonical, shared book record — metadata plus the LLM-researched
+    narrative sections for the Information tab. Generated once and never
+    regenerated on page view; `content_status` tracks per-section progress."""
+
+    __tablename__ = "catalog_books"
+
+    id = Column(String, primary_key=True, default=new_id)
+
+    title = Column(String, nullable=False)
+    author_id = Column(String, ForeignKey("catalog_authors.id"), nullable=True, index=True)
+    series_id = Column(String, ForeignKey("catalog_series.id"), nullable=True, index=True)
+    series_position = Column(Integer, nullable=True)
+
+    publication_date = Column(String, nullable=True)
+    original_language = Column(String, nullable=True)
+    genres = Column(JSON, default=list)
+
+    # Each of these four holds { summary: str, sources: [{title, url, publisher}] }
+    synopsis = Column(JSON, nullable=True)
+    how_it_was_written = Column(JSON, nullable=True)
+    historical_context = Column(JSON, nullable=True)
+    reception_and_legacy = Column(JSON, nullable=True)
+
+    # { synopsis, how_it_was_written, historical_context, reception_and_legacy: pending|researching|ready }
+    content_status = Column(JSON, default=default_content_status)
+
+    created_at = Column(String, default=now_iso)
+    updated_at = Column(String, default=now_iso, onupdate=now_iso)
+
+    author = relationship("CatalogAuthor", back_populates="books")
+    series = relationship("CatalogSeries", back_populates="books")
+    related_content = relationship(
+        "RelatedContent", back_populates="book", cascade="all, delete-orphan"
+    )
+
+
+class RelatedContent(Base):
+    __tablename__ = "related_content"
+
+    id = Column(String, primary_key=True, default=new_id)
+    book_id = Column(String, ForeignKey("catalog_books.id"), nullable=False, index=True)
+
+    title = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # one of RELATED_CONTENT_TYPES
+    url = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    source = Column(String, nullable=True)
+    publication_date = Column(String, nullable=True)
+    thumbnail_url = Column(String, nullable=True)
+
+    created_at = Column(String, default=now_iso)
+    updated_at = Column(String, default=now_iso, onupdate=now_iso)
+
+    book = relationship("CatalogBook", back_populates="related_content")
+
+
+Index("ix_related_content_book_type", RelatedContent.book_id, RelatedContent.type)

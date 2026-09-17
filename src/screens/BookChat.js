@@ -25,6 +25,7 @@ import {
 import SimpleBookImage from '../components/SimpleBookImage';
 import AppHeader from '../components/AppHeader';
 import { sendMessageToClaude, getCommunityResources } from '../services/ClaudeAPI';
+import { loadCatalogBookByTitle, loadRelatedContent } from '../services/CatalogAPI';
 import { useAuth } from '../context/AuthContext';
 import { handleAPIError, logError } from '../utils/ErrorHandler';
 import ImageColors from 'react-native-image-colors';
@@ -49,11 +50,67 @@ const TAB_PLACEHOLDER_COPY = {
     title: 'Access',
     body: 'Ways to read or buy this book will show up here.',
   },
-  information: {
-    title: 'Information',
-    body: 'Extended details about this book will show up here.',
-  },
 };
+
+// Information tab: narrative sections in display order, each keyed by its
+// content_status field name and the matching field on the catalog book.
+const NARRATIVE_SECTIONS = [
+  { statusKey: 'how_it_was_written', field: 'howItWasWritten', title: 'How It Was Written' },
+  {
+    statusKey: 'historical_context',
+    field: 'historicalContext',
+    title: 'Historical & Cultural Context',
+  },
+  {
+    statusKey: 'reception_and_legacy',
+    field: 'receptionAndLegacy',
+    title: 'Reception & Legacy',
+  },
+];
+
+const CONTENT_STATUS_META = {
+  pending: { label: 'Not yet researched', color: theme.colors.textMuted },
+  researching: { label: 'Researching…', color: theme.colors.warning },
+  ready: { label: 'Ready', color: theme.colors.success },
+};
+
+// Related-content types grouped for display — adaptations surface first,
+// per spec, then everything else grouped loosely by medium.
+const RELATED_CONTENT_GROUPS = [
+  {
+    key: 'adaptations',
+    label: 'Adaptations',
+    icon: '🎬',
+    types: ['adaptation_film', 'adaptation_tv', 'adaptation_stage'],
+  },
+  {
+    key: 'watch',
+    label: 'Documentaries & Video',
+    icon: '📺',
+    types: ['documentary', 'video'],
+  },
+  {
+    key: 'read_listen',
+    label: 'Articles & Podcasts',
+    icon: '🎙️',
+    types: ['podcast', 'article', 'essay', 'academic', 'interview'],
+  },
+];
+
+function groupRelatedContent(relatedContent) {
+  if (!relatedContent) return [];
+  return RELATED_CONTENT_GROUPS.map(group => ({
+    ...group,
+    items: group.types.flatMap(type => relatedContent[type] || []),
+  })).filter(group => group.items.length > 0);
+}
+
+// Explore action row — stubbed per spec, no wiring yet.
+const EXPLORE_ACTIONS = [
+  { key: 'read', label: 'Read', icon: '📖' },
+  { key: 'ask', label: 'Ask the Book', icon: '💬' },
+  { key: 'study', label: 'Study', icon: '🎓' },
+];
 
 // Reading status: a manually-set shelf, independent of page tracking. A
 // freshly added book has no status until the reader picks one — it isn't
@@ -198,6 +255,13 @@ export default function BookChat({
     status: 'idle',
     events: [],
     error: null,
+    bookId: null,
+  });
+  // status: 'idle' | 'loading' | 'success' | 'not_found'
+  const [informationState, setInformationState] = useState({
+    status: 'idle',
+    catalogBook: null,
+    relatedContent: {},
     bookId: null,
   });
   const [pageInput, setPageInput] = useState(String(book.currentPage || 1));
@@ -497,6 +561,36 @@ export default function BookChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentBook.id]);
 
+  const loadInformation = async () => {
+    setInformationState({
+      status: 'loading',
+      catalogBook: null,
+      relatedContent: {},
+      bookId: currentBook.id,
+    });
+    const catalogBook = await loadCatalogBookByTitle(currentBook.title);
+    if (!catalogBook) {
+      setInformationState({
+        status: 'not_found',
+        catalogBook: null,
+        relatedContent: {},
+        bookId: currentBook.id,
+      });
+      return;
+    }
+    const relatedContent = await loadRelatedContent(catalogBook.id);
+    setInformationState({ status: 'success', catalogBook, relatedContent, bookId: currentBook.id });
+  };
+
+  // Same once-per-book pattern as Community: the Information tab reads from
+  // the pre-researched catalog, never triggers an LLM call itself.
+  useEffect(() => {
+    if (activeTab !== 'information') return;
+    if (informationState.bookId === currentBook.id && informationState.status !== 'idle') return;
+    loadInformation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentBook.id]);
+
   // Minimal markdown for Claude's replies: **bold** spans and "- " bullet
   // lines. Deliberately not a full markdown parser — just enough to keep
   // Claude's occasional formatting from showing up as literal asterisks.
@@ -582,6 +676,52 @@ export default function BookChat({
     </View>
   );
 
+  // One narrative section of the Information tab (Synopsis, How It Was
+  // Written, etc.) — content is null until the research pipeline finishes
+  // that section, so status drives what's shown instead of just the data.
+  const renderNarrativeSection = (title, content, status) => {
+    const statusMeta = CONTENT_STATUS_META[status] || CONTENT_STATUS_META.pending;
+    return (
+      <View key={title} style={styles.infoSectionBlock}>
+        <View style={styles.infoSectionHeaderRow}>
+          <Text style={styles.infoSectionTitle}>{title}</Text>
+          {status !== 'ready' && (
+            <Text style={[styles.infoSectionStatus, { color: statusMeta.color }]}>
+              {statusMeta.label}
+            </Text>
+          )}
+        </View>
+        {content?.summary ? (
+          <>
+            <Text style={styles.infoSectionBody}>{content.summary}</Text>
+            {content.sources?.length > 0 && (
+              <View style={styles.sourceList}>
+                {content.sources.map((source, index) => (
+                  <TouchableOpacity
+                    key={`${source.url}-${index}`}
+                    onPress={() => source.url && Linking.openURL(source.url)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.sourceLink} numberOfLines={1}>
+                      {index + 1}. {source.title}
+                      {source.publisher ? ` — ${source.publisher}` : ''}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </>
+        ) : (
+          <Text style={styles.infoSectionEmptyText}>
+            {status === 'researching'
+              ? 'This section is being researched.'
+              : 'Not available yet.'}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
   // Remaining reading time, replacing the old flat "Progress: X% Complete"
   // sidebar row — paired with the radial ring instead of repeating the
   // percentage the ring already shows.
@@ -615,6 +755,7 @@ export default function BookChat({
   }
 
   const groupedCommunitySources = groupCommunitySources(communityState.sources);
+  const groupedRelatedContent = groupRelatedContent(informationState.relatedContent);
 
   return (
     <View style={styles.container}>
@@ -1077,6 +1218,139 @@ export default function BookChat({
                     ))
                   )}
                 </ScrollView>
+              </View>
+            ) : activeTab === 'information' ? (
+              <View style={styles.chatContainer}>
+                {informationState.status === 'loading' ? (
+                  <View style={styles.communityStatusContainer}>
+                    <ActivityIndicator color={theme.colors.orange} size='small' />
+                    <Text style={styles.communityStatusText}>Loading information...</Text>
+                  </View>
+                ) : informationState.status === 'not_found' ? (
+                  <View style={styles.communityStatusContainer}>
+                    <Text style={styles.communityStatusTitle}>Nothing here yet</Text>
+                    <Text style={styles.communityStatusText}>
+                      "{currentBook.title}" hasn't been researched yet — extended details show
+                      up here once it has.
+                    </Text>
+                  </View>
+                ) : informationState.status === 'success' && informationState.catalogBook ? (
+                  <ScrollView
+                    contentContainerStyle={styles.informationContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {/* Synopsis */}
+                    {renderNarrativeSection(
+                      'Synopsis',
+                      informationState.catalogBook.synopsis,
+                      (informationState.catalogBook.contentStatus || {}).synopsis
+                    )}
+
+                    {/* Publication / Author / Series */}
+                    <View style={styles.infoSectionBlock}>
+                      <Text style={styles.infoSectionTitle}>Publication</Text>
+                      <View style={styles.pubFactRow}>
+                        <Text style={styles.pubFactLabel}>Author</Text>
+                        <Text style={styles.pubFactValue}>
+                          {informationState.catalogBook.author?.name || 'Unknown'}
+                        </Text>
+                      </View>
+                      {informationState.catalogBook.series && (
+                        <View style={styles.pubFactRow}>
+                          <Text style={styles.pubFactLabel}>Series</Text>
+                          <Text style={styles.pubFactValue}>
+                            {informationState.catalogBook.series.name}
+                            {informationState.catalogBook.seriesPosition
+                              ? ` (Book ${informationState.catalogBook.seriesPosition} of ${informationState.catalogBook.series.bookIds.length})`
+                              : ''}
+                          </Text>
+                        </View>
+                      )}
+                      {informationState.catalogBook.publicationDate && (
+                        <View style={styles.pubFactRow}>
+                          <Text style={styles.pubFactLabel}>Published</Text>
+                          <Text style={styles.pubFactValue}>
+                            {informationState.catalogBook.publicationDate}
+                          </Text>
+                        </View>
+                      )}
+                      {informationState.catalogBook.originalLanguage && (
+                        <View style={styles.pubFactRow}>
+                          <Text style={styles.pubFactLabel}>Original language</Text>
+                          <Text style={styles.pubFactValue}>
+                            {informationState.catalogBook.originalLanguage}
+                          </Text>
+                        </View>
+                      )}
+                      {informationState.catalogBook.genres?.length > 0 && (
+                        <View style={styles.genreChipRow}>
+                          {informationState.catalogBook.genres.map(genre => (
+                            <View key={genre} style={styles.genreChip}>
+                              <Text style={styles.genreChipText}>{genre}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* How It Was Written / Historical Context / Reception & Legacy */}
+                    {NARRATIVE_SECTIONS.map(section =>
+                      renderNarrativeSection(
+                        section.title,
+                        informationState.catalogBook[section.field],
+                        (informationState.catalogBook.contentStatus || {})[section.statusKey]
+                      )
+                    )}
+
+                    {/* Related Content — visually separated from the narrative sections above */}
+                    {groupedRelatedContent.length > 0 && (
+                      <View style={styles.relatedContentSection}>
+                        <Text style={styles.relatedContentHeader}>Related Content</Text>
+                        {groupedRelatedContent.map(group => (
+                          <View key={group.key} style={styles.communityCategoryBlock}>
+                            <Text style={styles.communityCategoryHeader}>
+                              {group.icon} {group.label}
+                            </Text>
+                            {group.items.map(item => (
+                              <TouchableOpacity
+                                key={item.id}
+                                style={styles.communityCard}
+                                onPress={() => item.url && Linking.openURL(item.url)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.communityName} numberOfLines={1}>
+                                  {item.title}
+                                </Text>
+                                {item.description && (
+                                  <Text style={styles.communityDescription}>
+                                    {item.description}
+                                  </Text>
+                                )}
+                                <Text style={styles.communityCta}>
+                                  {[item.source, item.publicationDate].filter(Boolean).join(' · ')}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Explore — stubbed actions, not wired up yet */}
+                    <View style={styles.exploreRow}>
+                      {EXPLORE_ACTIONS.map(action => (
+                        <View key={action.key} style={styles.exploreAction}>
+                          <Text style={styles.exploreActionIcon}>{action.icon}</Text>
+                          <Text style={styles.exploreActionLabel}>{action.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                ) : (
+                  <View style={styles.communityStatusContainer}>
+                    <ActivityIndicator color={theme.colors.orange} size='small' />
+                  </View>
+                )}
               </View>
             ) : activeTab !== 'chat' ? (
               <View style={styles.chatContainer}>
@@ -1588,6 +1862,123 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
+  },
+  informationContent: {
+    padding: 20,
+    gap: 4,
+  },
+  infoSectionBlock: {
+    marginBottom: 22,
+  },
+  infoSectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  infoSectionTitle: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+  },
+  infoSectionStatus: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+  },
+  infoSectionBody: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textSecondary,
+    lineHeight: 19,
+  },
+  infoSectionEmptyText: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    fontStyle: 'italic',
+    color: theme.colors.textMuted,
+  },
+  sourceList: {
+    marginTop: 10,
+    gap: 4,
+  },
+  sourceLink: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.blueLight,
+  },
+  pubFactRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 5,
+  },
+  pubFactLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: 'rgba(201, 209, 217, 0.85)',
+  },
+  pubFactValue: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textPrimary,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  genreChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  genreChip: {
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  genreChipText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.textSecondary,
+  },
+  relatedContentSection: {
+    marginTop: 6,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+  },
+  relatedContentHeader: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    color: theme.colors.textPrimary,
+    marginBottom: 14,
+  },
+  exploreRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+  },
+  exploreAction: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: 12,
+    paddingVertical: 14,
+    opacity: 0.6,
+  },
+  exploreActionIcon: {
+    fontSize: 18,
+  },
+  exploreActionLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textSecondary,
   },
   historyContent: {
     padding: 20,
