@@ -47,6 +47,12 @@ The goal is to create something that feels both cutting-edge and timeless - mode
 - **Border radius**: Use `radii.sm`, `radii.md`, etc.
 - **Premium Aesthetics**: Every interaction should feel smooth and purposeful
 - **Responsive Design**: Must work perfectly on mobile, tablet, and desktop
+- **Dropdown/popover menus**: Every floating menu (account menu, status menu,
+  etc.) must use `theme.components.dropdown` for its card chrome (background,
+  radius, border, shadow) and item spacing, and must render a full-screen
+  backdrop that closes the menu on outside click — see `AppHeader.js`'s
+  account dropdown and `BookChat.js`'s status menu for the reference
+  implementation. Don't hand-roll new border/shadow/padding values for a menu.
 
 ### Component Guidelines
 - Keep components focused and single-purpose

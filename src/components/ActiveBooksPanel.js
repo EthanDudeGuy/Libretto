@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.x2_5,
     paddingBottom: theme.spacing.x1_5,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.orangeMuted,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   panelTitle: {
     fontSize: theme.typography.lg,
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   },
   viewLibraryLink: {
     fontSize: theme.typography.sm,
-    color: theme.colors.orangeLight,
+    color: theme.colors.sageLight,
     fontFamily: 'Inter_500Medium',
   },
   scroll: {
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.borderSubtle,
   },
   pageLabel: {
-    color: theme.colors.orangeLight,
+    color: theme.colors.sand,
     fontSize: theme.typography.xs,
     fontFamily: 'Inter_500Medium',
   },

@@ -53,7 +53,7 @@ class Book(Base):
     started_at = Column(String, nullable=True)
     finished_at = Column(String, nullable=True)
     status = Column(String, nullable=True)  # want_to_read | currently_reading | read | null
-    rating = Column(Integer, nullable=True)  # 1-5 | null
+    rating = Column(Float, nullable=True)  # 0.5-5 in half-star steps | null
 
     # Catch-all for any field the frontend sends that isn't modeled above yet
     # (the book shape has grown organically) — never silently drops data.

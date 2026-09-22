@@ -32,6 +32,27 @@ function SettingsIcon({ color = theme.colors.textPrimary }) {
   );
 }
 
+function LibraryIcon({ color = theme.colors.textPrimary }) {
+  return (
+    <Svg width={13} height={13} viewBox='0 0 24 24' fill='none'>
+      <Path
+        d='M4 4.5A1.5 1.5 0 0 1 5.5 3H10a1.5 1.5 0 0 1 1.5 1.5v16a.5.5 0 0 1-.5.5H5.5A1.5 1.5 0 0 1 4 19.5v-15Z'
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <Path
+        d='M14 4.5A1.5 1.5 0 0 1 15.5 3H18a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 18 21h-2.5a1.5 1.5 0 0 1-1.5-1.5v-15Z'
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </Svg>
+  );
+}
+
 function LogoutIcon({ color = theme.colors.danger }) {
   return (
     <Svg width={13} height={13} viewBox='0 0 24 24' fill='none'>
@@ -117,6 +138,7 @@ export default function AppHeader({
   onSelectBook,
   onNavigateHome,
   onNavigateSettings,
+  onNavigateLibrary,
   onBack,
 }) {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -130,6 +152,11 @@ export default function AppHeader({
   const handleSettings = () => {
     setShowUserDropdown(false);
     onNavigateSettings?.();
+  };
+
+  const handleLibrary = () => {
+    setShowUserDropdown(false);
+    onNavigateLibrary?.();
   };
 
   return (
@@ -183,6 +210,17 @@ export default function AppHeader({
             onPress={() => setShowUserDropdown(false)}
           />
           <View style={styles.userDropdown}>
+            <TouchableOpacity
+              style={styles.dropdownOption}
+              onPress={handleLibrary}
+              activeOpacity={0.65}
+            >
+              <View style={styles.dropdownIconWell}>
+                <LibraryIcon />
+              </View>
+              <Text style={styles.dropdownOptionText}>Library</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.dropdownOption}
               onPress={handleSettings}
@@ -306,29 +344,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 52,
     right: 18,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 4,
     minWidth: 168,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.borderStrong,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 12,
+    ...theme.components.dropdown.card,
+    ...theme.components.dropdown.card.shadow,
   },
   dropdownOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
     gap: 8,
+    ...theme.components.dropdown.item,
   },
   dropdownIconWell: {
     width: 22,
@@ -340,16 +364,13 @@ const styles = StyleSheet.create({
   },
   dropdownDivider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: theme.colors.borderSubtle,
-    marginVertical: 3,
-    marginHorizontal: 8,
+    ...theme.components.dropdown.divider,
   },
   dropdownOptionText: {
-    fontSize: 13,
     fontWeight: '400',
-    color: theme.colors.textPrimary,
-    fontFamily: 'Inter_400Regular',
     letterSpacing: -0.1,
+    ...theme.components.dropdown.itemText,
+    fontFamily: 'Inter_400Regular',
   },
   logoutText: {
     color: theme.colors.danger,

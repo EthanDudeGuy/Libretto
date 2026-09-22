@@ -31,8 +31,6 @@ const styles = StyleSheet.create({
     width: 140,
     height: 200,
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
     backgroundColor: theme.colors.surface,
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.35)',
     elevation: 6,

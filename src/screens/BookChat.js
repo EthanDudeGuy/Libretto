@@ -20,7 +20,6 @@ import {
   calculateProgress,
   loadMessages,
   saveMessage,
-  loadBookHistory,
 } from '../utils/BookStorage';
 import SimpleBookImage from '../components/SimpleBookImage';
 import AppHeader from '../components/AppHeader';
@@ -36,11 +35,11 @@ const { height: WINDOW_HEIGHT } = Dimensions.get('window');
 const BANNER_HEIGHT = Math.max(160, WINDOW_HEIGHT * 0.2);
 
 const TABS = [
+  { key: 'information', label: 'Information' },
   { key: 'chat', label: 'Chat' },
   { key: 'community', label: 'Community' },
   { key: 'access', label: 'Access' },
-  { key: 'information', label: 'Information' },
-  { key: 'history', label: 'History' },
+  { key: 'reviews', label: 'Reviews' },
 ];
 
 // Placeholder copy for tabs with no backing data/feature yet — shell only,
@@ -49,6 +48,10 @@ const TAB_PLACEHOLDER_COPY = {
   access: {
     title: 'Access',
     body: 'Ways to read or buy this book will show up here.',
+  },
+  reviews: {
+    title: 'Reviews',
+    body: 'Reviews for this book will show up here.',
   },
 };
 
@@ -66,6 +69,17 @@ const NARRATIVE_SECTIONS = [
     field: 'receptionAndLegacy',
     title: 'Reception & Legacy',
   },
+];
+
+// Jump-to nav shown at the top of the Information tab, Wikipedia
+// table-of-contents style — tapping one scrolls straight to that section.
+const INFO_JUMP_NAV = [
+  { key: 'synopsis', label: 'Synopsis' },
+  { key: 'details', label: 'Details' },
+  { key: 'how_it_was_written', label: 'How It Was Written' },
+  { key: 'historical_context', label: 'Historical & Cultural Context' },
+  { key: 'reception_and_legacy', label: 'Reception & Legacy' },
+  { key: 'related', label: 'Related Content' },
 ];
 
 const CONTENT_STATUS_META = {
@@ -112,6 +126,10 @@ const EXPLORE_ACTIONS = [
   { key: 'study', label: 'Study', icon: '🎓' },
 ];
 
+// Star size for the rating row — tapping the left/right half of a star
+// sets a half or whole rating (e.g. 3.5 vs 4).
+const STAR_SIZE = 20;
+
 // Reading status: a manually-set shelf, independent of page tracking. A
 // freshly added book has no status until the reader picks one — it isn't
 // implied by having a current page.
@@ -157,39 +175,6 @@ function groupCommunitySources(sources) {
     .filter(group => group.items.length > 0);
 }
 
-const formatTrackingDate = isoString => {
-  if (!isoString) return null;
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
-// Turns one raw { field, oldValue, newValue } history event into the
-// human-readable line shown in the History tab's change log.
-function describeHistoryEvent(event) {
-  const { field, oldValue, newValue } = event;
-  switch (field) {
-    case 'currentPage':
-      return oldValue
-        ? `Progress updated to page ${newValue} (from page ${oldValue})`
-        : `Progress updated to page ${newValue}`;
-    case 'status':
-      return `Marked as "${getStatusOption(newValue).label}"`;
-    case 'rating':
-      return newValue
-        ? `Rated ${newValue} star${newValue === 1 ? '' : 's'}`
-        : 'Rating removed';
-    case 'finishedAt':
-      return newValue ? 'Marked as finished' : 'Marked as still reading';
-    default:
-      return `Updated ${field}`;
-  }
-}
-
 // Compact radial indicator used to merge "progress" and "reading time" into
 // one glanceable widget instead of two separate text rows.
 function ProgressRing({ percent, size = 52, strokeWidth = 5 }) {
@@ -233,13 +218,14 @@ export default function BookChat({
   onBack,
   onNavigateHome,
   onNavigateSettings,
+  onNavigateToLibrary,
   onSelectBook,
 }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [currentBook, setCurrentBook] = useState(book);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activeTab, setActiveTab] = useState('information');
   const [backgroundColor, setBackgroundColor] = useState(theme.colors.surface);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -247,13 +233,6 @@ export default function BookChat({
   const [communityState, setCommunityState] = useState({
     status: 'idle',
     sources: [],
-    error: null,
-    bookId: null,
-  });
-  // status: 'idle' | 'loading' | 'success' | 'error'
-  const [historyState, setHistoryState] = useState({
-    status: 'idle',
-    events: [],
     error: null,
     bookId: null,
   });
@@ -266,8 +245,11 @@ export default function BookChat({
   });
   const [pageInput, setPageInput] = useState(String(book.currentPage || 1));
   const [pageUpdateStatus, setPageUpdateStatus] = useState('idle'); // idle | saving | error
-  const [editingPage, setEditingPage] = useState(false);
+  const [statusMenuLayout, setStatusMenuLayout] = useState(null);
+  const statusPillRef = useRef(null);
   const scrollViewRef = useRef();
+  const informationScrollRef = useRef();
+  const infoSectionOffsets = useRef({});
   const { user } = useAuth();
 
   // Animation values
@@ -476,11 +458,17 @@ export default function BookChat({
   };
 
   const handleSelectStatus = async statusValue => {
-    setShowStatusMenu(false);
     try {
       const updated = await updateBook(currentBook.id, { status: statusValue });
       setCurrentBook(updated);
-      if (activeTab === 'history') loadHistoryEvents();
+      if (statusValue === 'currently_reading') {
+        // Keep the menu open so the reader can drop straight into setting
+        // their current page instead of having to reopen it.
+        setPageInput(String(updated.currentPage || 1));
+        setPageUpdateStatus('idle');
+      } else {
+        setShowStatusMenu(false);
+      }
     } catch (error) {
       logError(error, 'Updating book status');
     }
@@ -492,7 +480,6 @@ export default function BookChat({
     try {
       const updated = await updateBook(currentBook.id, { rating: newRating });
       setCurrentBook(updated);
-      if (activeTab === 'history') loadHistoryEvents();
     } catch (error) {
       logError(error, 'Updating book rating');
     }
@@ -513,34 +500,12 @@ export default function BookChat({
       setCurrentBook(updated);
       setPageInput(String(updated.currentPage));
       setPageUpdateStatus('idle');
-      setEditingPage(false);
-      if (activeTab === 'history') loadHistoryEvents();
+      setShowStatusMenu(false);
     } catch (error) {
       logError(error, 'Updating current page');
       setPageUpdateStatus('error');
     }
   };
-
-  const handleCancelPageEdit = () => {
-    setPageInput(String(currentBook.currentPage || 1));
-    setPageUpdateStatus('idle');
-    setEditingPage(false);
-  };
-
-  const loadHistoryEvents = async () => {
-    setHistoryState({ status: 'loading', events: [], error: null, bookId: currentBook.id });
-    // loadBookHistory never throws — it logs and resolves to [] on failure —
-    // so an empty result here just renders as "no updates yet."
-    const events = await loadBookHistory(currentBook.id);
-    setHistoryState({ status: 'success', events, error: null, bookId: currentBook.id });
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'history') return;
-    if (historyState.bookId === currentBook.id && historyState.status !== 'idle') return;
-    loadHistoryEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, currentBook.id]);
 
   const loadCommunityResources = async () => {
     setCommunityState({ status: 'loading', sources: [], error: null, bookId: currentBook.id });
@@ -676,13 +641,28 @@ export default function BookChat({
     </View>
   );
 
+  // Records each section's vertical offset as it lays out, so the jump nav
+  // can scroll straight to it — the Information tab's table of contents.
+  const registerInfoSection = key => event => {
+    infoSectionOffsets.current[key] = event.nativeEvent.layout.y;
+  };
+
+  const scrollToInfoSection = key => {
+    const y = infoSectionOffsets.current[key];
+    if (typeof y === 'number') {
+      informationScrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+    }
+  };
+
   // One narrative section of the Information tab (Synopsis, How It Was
   // Written, etc.) — content is null until the research pipeline finishes
   // that section, so status drives what's shown instead of just the data.
-  const renderNarrativeSection = (title, content, status) => {
+  // Headers use a bottom rule (Wikipedia's h2 treatment) so sections read as
+  // distinct entries in one continuous article rather than separate cards.
+  const renderNarrativeSection = (sectionKey, title, content, status) => {
     const statusMeta = CONTENT_STATUS_META[status] || CONTENT_STATUS_META.pending;
     return (
-      <View key={title} style={styles.infoSectionBlock}>
+      <View key={sectionKey} style={styles.infoSectionBlock} onLayout={registerInfoSection(sectionKey)}>
         <View style={styles.infoSectionHeaderRow}>
           <Text style={styles.infoSectionTitle}>{title}</Text>
           {status !== 'ready' && (
@@ -696,14 +676,17 @@ export default function BookChat({
             <Text style={styles.infoSectionBody}>{content.summary}</Text>
             {content.sources?.length > 0 && (
               <View style={styles.sourceList}>
+                <Text style={styles.sourceListLabel}>References</Text>
                 {content.sources.map((source, index) => (
                   <TouchableOpacity
                     key={`${source.url}-${index}`}
                     onPress={() => source.url && Linking.openURL(source.url)}
                     activeOpacity={0.7}
+                    style={styles.sourceLinkRow}
                   >
+                    <Text style={styles.sourceLinkIndex}>{index + 1}.</Text>
                     <Text style={styles.sourceLink} numberOfLines={1}>
-                      {index + 1}. {source.title}
+                      {source.title}
                       {source.publisher ? ` — ${source.publisher}` : ''}
                     </Text>
                   </TouchableOpacity>
@@ -773,8 +756,144 @@ export default function BookChat({
         onSelectBook={onSelectBook}
         onNavigateHome={onNavigateHome ?? onBack}
         onNavigateSettings={onNavigateSettings}
+        onNavigateLibrary={onNavigateToLibrary}
         onBack={onBack}
       />
+
+      {/* Rendered as a top-level sibling (not nested inside pageContent,
+          which animates `opacity` and so creates its own stacking context)
+          so the menu's zIndex isn't trapped below this backdrop. Position is
+          measured from the status pill via measureInWindow, since the menu
+          no longer lives next to its trigger in the tree. */}
+      {showStatusMenu && statusMenuLayout && (
+        <>
+          <TouchableOpacity
+            style={styles.statusMenuBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowStatusMenu(false)}
+          />
+          <View
+            style={[
+              styles.statusMenu,
+              {
+                top: statusMenuLayout.top,
+                left: statusMenuLayout.left,
+                width: statusMenuLayout.width,
+              },
+            ]}
+          >
+            {STATUS_OPTIONS.map(option => {
+              const isActive = (currentBook.status || null) === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  style={styles.statusOption}
+                  onPress={() => handleSelectStatus(option.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.statusOptionText,
+                      isActive && styles.statusOptionTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {isActive && <Text style={styles.statusCheck}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })}
+
+            {currentBook.status === 'currently_reading' && (
+              <>
+                <View style={styles.statusMenuDivider} />
+
+                <Text style={styles.ratingLabel}>Current page</Text>
+                <View style={styles.statusMenuPageRow}>
+                  <TextInput
+                    style={styles.statusMenuPageInput}
+                    value={pageInput}
+                    onChangeText={text => {
+                      setPageInput(text.replace(/[^0-9]/g, ''));
+                      if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
+                    }}
+                    keyboardType='number-pad'
+                    placeholder='Page'
+                    placeholderTextColor={theme.colors.textMuted}
+                    maxLength={6}
+                    onSubmitEditing={handleUpdateCurrentPage}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.statusMenuPageButton,
+                      pageUpdateStatus === 'saving' &&
+                        styles.statusMenuPageButtonDisabled,
+                    ]}
+                    onPress={handleUpdateCurrentPage}
+                    disabled={pageUpdateStatus === 'saving'}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.statusMenuPageButtonText}>
+                      {pageUpdateStatus === 'saving' ? 'Saving...' : 'Save'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {pageUpdateStatus === 'error' && (
+                  <Text style={styles.statusMenuPageError}>
+                    Enter a page between 1 and {currentBook.totalPages || '?'}.
+                  </Text>
+                )}
+              </>
+            )}
+
+            <View style={styles.statusMenuDivider} />
+
+            <Text style={styles.ratingLabel}>
+              Your rating{currentBook.rating ? ` · ${currentBook.rating}` : ''}
+            </Text>
+            <View style={styles.starRow}>
+              {[1, 2, 3, 4, 5].map(starIndex => {
+                const fillRatio = Math.max(
+                  0,
+                  Math.min(1, (currentBook.rating || 0) - (starIndex - 1))
+                );
+                const setValue = value => {
+                  handleSetRating(currentBook.rating === value ? null : value);
+                };
+                return (
+                  <View key={starIndex} style={styles.starSlot}>
+                    <Text style={styles.star}>★</Text>
+                    {fillRatio > 0 && (
+                      <View
+                        style={[
+                          styles.starFillMask,
+                          { width: STAR_SIZE * fillRatio },
+                        ]}
+                      >
+                        <Text style={[styles.star, styles.starFilled]}>★</Text>
+                      </View>
+                    )}
+                    {/* Two stacked half-width touch targets — more reliable
+                        than reading tap x-position off the press event. */}
+                    <TouchableOpacity
+                      style={styles.starHalfLeft}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6 }}
+                      onPress={() => setValue(starIndex - 0.5)}
+                    />
+                    <TouchableOpacity
+                      style={styles.starHalfRight}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6 }}
+                      onPress={() => setValue(starIndex)}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </>
+      )}
 
       <Animated.View
         style={[
@@ -818,8 +937,20 @@ export default function BookChat({
                 under the cover so it's the first thing you can act on. */}
             <View style={styles.statusSection}>
               <TouchableOpacity
+                ref={statusPillRef}
                 style={styles.statusPill}
-                onPress={() => setShowStatusMenu(prev => !prev)}
+                onPress={() => {
+                  if (showStatusMenu) {
+                    setShowStatusMenu(false);
+                    return;
+                  }
+                  setPageInput(String(currentBook.currentPage || 1));
+                  setPageUpdateStatus('idle');
+                  statusPillRef.current?.measureInWindow((x, y, width, height) => {
+                    setStatusMenuLayout({ top: y + height + 6, left: x, width });
+                    setShowStatusMenu(true);
+                  });
+                }}
                 activeOpacity={0.7}
               >
                 <View
@@ -835,72 +966,6 @@ export default function BookChat({
                   {showStatusMenu ? '︿' : '﹀'}
                 </Text>
               </TouchableOpacity>
-
-              {showStatusMenu && (
-                <View style={styles.statusMenu}>
-                  {STATUS_OPTIONS.map(option => {
-                    const isActive = (currentBook.status || null) === option.value;
-                    return (
-                      <TouchableOpacity
-                        key={option.key}
-                        style={styles.statusOption}
-                        onPress={() => handleSelectStatus(option.value)}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.statusOptionText,
-                            isActive && styles.statusOptionTextActive,
-                          ]}
-                        >
-                          {option.label}
-                        </Text>
-                        {isActive && <Text style={styles.statusCheck}>✓</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-
-                  <View style={styles.statusMenuDivider} />
-
-                  <Text style={styles.ratingLabel}>Your rating</Text>
-                  <View style={styles.starRow}>
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <TouchableOpacity
-                        key={star}
-                        onPress={() => handleSetRating(star)}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-                      >
-                        <Text
-                          style={[
-                            styles.star,
-                            star <= (currentBook.rating || 0) && styles.starFilled,
-                          ]}
-                        >
-                          ★
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            {/* Compact byline: Author / Published / Pages / Language as one
-                de-emphasized block instead of four equal-weight rows. */}
-            <View style={styles.bylineBlock}>
-              <Text style={styles.bylineAuthor} numberOfLines={2}>
-                {currentBook.author || 'Unknown author'}
-              </Text>
-              <Text style={styles.bylineMeta} numberOfLines={2}>
-                {[
-                  currentBook.publishedDate,
-                  currentBook.totalPages ? `${currentBook.totalPages} pages` : null,
-                  currentBook.language || 'English',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
             </View>
 
             {/* Progress + reading time, merged into one compact radial widget */}
@@ -912,56 +977,8 @@ export default function BookChat({
               </View>
             </View>
 
-            {editingPage ? (
-              <View style={styles.pageUpdateRow}>
-                <TextInput
-                  style={styles.pageUpdateInput}
-                  value={pageInput}
-                  onChangeText={text => {
-                    setPageInput(text.replace(/[^0-9]/g, ''));
-                    if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
-                  }}
-                  keyboardType='number-pad'
-                  placeholder='Page'
-                  placeholderTextColor={theme.colors.textMuted}
-                  autoFocus
-                  maxLength={6}
-                  onSubmitEditing={handleUpdateCurrentPage}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.pageUpdateButton,
-                    pageUpdateStatus === 'saving' && styles.pageUpdateButtonDisabled,
-                  ]}
-                  onPress={handleUpdateCurrentPage}
-                  disabled={pageUpdateStatus === 'saving'}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.pageUpdateButtonText}>
-                    {pageUpdateStatus === 'saving' ? 'Saving...' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleCancelPageEdit} activeOpacity={0.7}>
-                  <Text style={styles.updatePageLinkText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.updatePageLink}
-                onPress={() => setEditingPage(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.updatePageLinkText}>Update page</Text>
-              </TouchableOpacity>
-            )}
-            {pageUpdateStatus === 'error' && (
-              <Text style={styles.pageUpdateError}>
-                Enter a page between 1 and {currentBook.totalPages || '?'}.
-              </Text>
-            )}
-
             {/* Everything else is secondary — tucked behind a toggle so it
-                doesn't compete visually with the cover, byline, and progress. */}
+                doesn't compete visually with the cover and progress. */}
             {moreDetailsRows.length > 0 && (
               <View style={styles.moreDetailsSection}>
                 <TouchableOpacity
@@ -1114,113 +1131,8 @@ export default function BookChat({
                   </ScrollView>
                 )}
               </View>
-            ) : activeTab === 'history' ? (
-              <View style={styles.chatContainer}>
-                <ScrollView
-                  contentContainerStyle={styles.historyContent}
-                  showsVerticalScrollIndicator={false}
-                >
-                  <View style={styles.historyRow}>
-                    <Text style={styles.historyIcon}>📖</Text>
-                    <View style={styles.historyTextBlock}>
-                      <Text style={styles.historyLabel}>Started reading</Text>
-                      <Text style={styles.historyValue}>
-                        {formatTrackingDate(currentBook.startedAt) || 'Unknown'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.historyDivider} />
-
-                  <View style={styles.historyRow}>
-                    <Text style={styles.historyIcon}>📍</Text>
-                    <View style={styles.historyTextBlock}>
-                      <Text style={styles.historyLabel}>Current progress</Text>
-                      <Text style={styles.historyValue}>
-                        Page {currentBook.currentPage || 1} of{' '}
-                        {currentBook.totalPages || '?'} ({currentBook.progress || 0}%)
-                      </Text>
-
-                      <View style={styles.pageUpdateRow}>
-                        <TextInput
-                          style={styles.pageUpdateInput}
-                          value={pageInput}
-                          onChangeText={text => {
-                            setPageInput(text.replace(/[^0-9]/g, ''));
-                            if (pageUpdateStatus === 'error') setPageUpdateStatus('idle');
-                          }}
-                          keyboardType='number-pad'
-                          placeholder='Page'
-                          placeholderTextColor={theme.colors.textMuted}
-                          maxLength={6}
-                        />
-                        <TouchableOpacity
-                          style={[
-                            styles.pageUpdateButton,
-                            pageUpdateStatus === 'saving' && styles.pageUpdateButtonDisabled,
-                          ]}
-                          onPress={handleUpdateCurrentPage}
-                          disabled={pageUpdateStatus === 'saving'}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.pageUpdateButtonText}>
-                            {pageUpdateStatus === 'saving' ? 'Saving...' : 'Update'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                      {pageUpdateStatus === 'error' && (
-                        <Text style={styles.pageUpdateError}>
-                          Enter a page between 1 and {currentBook.totalPages || '?'}.
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.historyDivider} />
-
-                  <View style={styles.historyRow}>
-                    <Text style={styles.historyIcon}>
-                      {currentBook.finishedAt ? '✅' : '⏳'}
-                    </Text>
-                    <View style={styles.historyTextBlock}>
-                      <Text style={styles.historyLabel}>
-                        {currentBook.finishedAt ? 'Finished reading' : 'Still reading'}
-                      </Text>
-                      <Text style={styles.historyValue}>
-                        {currentBook.finishedAt
-                          ? formatTrackingDate(currentBook.finishedAt)
-                          : currentBook.totalPages
-                          ? `${Math.max(0, 100 - (currentBook.progress || 0))}% left`
-                          : 'In progress'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.historyDivider} />
-
-                  <Text style={styles.historySectionTitle}>Update history</Text>
-                  {historyState.status === 'loading' ? (
-                    <ActivityIndicator color={theme.colors.textMuted} style={styles.historyLogLoading} />
-                  ) : historyState.status === 'error' ? (
-                    <Text style={styles.historyEmptyText}>{historyState.error}</Text>
-                  ) : historyState.events.length === 0 ? (
-                    <Text style={styles.historyEmptyText}>
-                      No tracking updates yet — changes you make here will show up as a log.
-                    </Text>
-                  ) : (
-                    historyState.events.map(event => (
-                      <View key={event.id} style={styles.historyLogRow}>
-                        <Text style={styles.historyLogText}>{describeHistoryEvent(event)}</Text>
-                        <Text style={styles.historyLogDate}>
-                          {formatTrackingDate(event.createdAt) || ''}
-                        </Text>
-                      </View>
-                    ))
-                  )}
-                </ScrollView>
-              </View>
             ) : activeTab === 'information' ? (
-              <View style={styles.chatContainer}>
+              <View style={styles.informationContainer}>
                 {informationState.status === 'loading' ? (
                   <View style={styles.communityStatusContainer}>
                     <ActivityIndicator color={theme.colors.orange} size='small' />
@@ -1235,76 +1147,129 @@ export default function BookChat({
                     </Text>
                   </View>
                 ) : informationState.status === 'success' && informationState.catalogBook ? (
-                  <ScrollView
-                    contentContainerStyle={styles.informationContent}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {/* Synopsis */}
-                    {renderNarrativeSection(
-                      'Synopsis',
-                      informationState.catalogBook.synopsis,
-                      (informationState.catalogBook.contentStatus || {}).synopsis
-                    )}
+                  <>
+                    {/* Jump nav — Wikipedia-style table of contents for this article */}
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.infoJumpNav}
+                      contentContainerStyle={styles.infoJumpNavContent}
+                    >
+                      {INFO_JUMP_NAV.map(item => (
+                        <TouchableOpacity
+                          key={item.key}
+                          style={styles.infoJumpNavPill}
+                          onPress={() => scrollToInfoSection(item.key)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.infoJumpNavPillText}>{item.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
 
-                    {/* Publication / Author / Series */}
-                    <View style={styles.infoSectionBlock}>
-                      <Text style={styles.infoSectionTitle}>Publication</Text>
-                      <View style={styles.pubFactRow}>
-                        <Text style={styles.pubFactLabel}>Author</Text>
-                        <Text style={styles.pubFactValue}>
-                          {informationState.catalogBook.author?.name || 'Unknown'}
-                        </Text>
-                      </View>
-                      {informationState.catalogBook.series && (
-                        <View style={styles.pubFactRow}>
-                          <Text style={styles.pubFactLabel}>Series</Text>
-                          <Text style={styles.pubFactValue}>
-                            {informationState.catalogBook.series.name}
-                            {informationState.catalogBook.seriesPosition
-                              ? ` (Book ${informationState.catalogBook.seriesPosition} of ${informationState.catalogBook.series.bookIds.length})`
-                              : ''}
-                          </Text>
+                    <ScrollView
+                      ref={informationScrollRef}
+                      contentContainerStyle={styles.informationContent}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {/* Hero row: lead paragraph on the left, quick-facts infobox
+                          docked to the right — wraps to a stacked layout on narrow
+                          screens since the two columns simply flow with flexWrap. */}
+                      <View style={styles.infoHeroRow}>
+                        {/* Synopsis — the article's lead paragraph, unboxed and set
+                            larger than the sections below it */}
+                        <View
+                          style={styles.infoLeadBlock}
+                          onLayout={registerInfoSection('synopsis')}
+                        >
+                          {informationState.catalogBook.synopsis?.summary ? (
+                            <Text style={styles.infoLeadText}>
+                              {informationState.catalogBook.synopsis.summary}
+                            </Text>
+                          ) : (
+                            <Text style={styles.infoSectionEmptyText}>
+                              {(informationState.catalogBook.contentStatus || {}).synopsis ===
+                              'researching'
+                                ? 'This section is being researched.'
+                                : 'Not available yet.'}
+                            </Text>
+                          )}
                         </View>
-                      )}
-                      {informationState.catalogBook.publicationDate && (
-                        <View style={styles.pubFactRow}>
-                          <Text style={styles.pubFactLabel}>Published</Text>
-                          <Text style={styles.pubFactValue}>
-                            {informationState.catalogBook.publicationDate}
-                          </Text>
-                        </View>
-                      )}
-                      {informationState.catalogBook.originalLanguage && (
-                        <View style={styles.pubFactRow}>
-                          <Text style={styles.pubFactLabel}>Original language</Text>
-                          <Text style={styles.pubFactValue}>
-                            {informationState.catalogBook.originalLanguage}
-                          </Text>
-                        </View>
-                      )}
-                      {informationState.catalogBook.genres?.length > 0 && (
-                        <View style={styles.genreChipRow}>
-                          {informationState.catalogBook.genres.map(genre => (
-                            <View key={genre} style={styles.genreChip}>
-                              <Text style={styles.genreChipText}>{genre}</Text>
+
+                        {/* Details — an infobox in the Wikipedia sense: a compact,
+                            docked table of quick facts set apart from the prose */}
+                        <View
+                          style={styles.infoBox}
+                          onLayout={registerInfoSection('details')}
+                        >
+                          <Text style={styles.infoBoxEyebrow}>Quick Facts</Text>
+                          <View
+                            style={[
+                              styles.pubFactRow,
+                              styles.pubFactRowBordered,
+                              styles.pubFactRowFirst,
+                            ]}
+                          >
+                            <Text style={styles.pubFactLabel}>Author</Text>
+                            <Text style={styles.pubFactValue}>
+                              {informationState.catalogBook.author?.name || 'Unknown'}
+                            </Text>
+                          </View>
+                          {informationState.catalogBook.series && (
+                            <View style={[styles.pubFactRow, styles.pubFactRowBordered]}>
+                              <Text style={styles.pubFactLabel}>Series</Text>
+                              <Text style={styles.pubFactValue}>
+                                {informationState.catalogBook.series.name}
+                                {informationState.catalogBook.seriesPosition
+                                  ? ` (Book ${informationState.catalogBook.seriesPosition} of ${informationState.catalogBook.series.bookIds.length})`
+                                  : ''}
+                              </Text>
                             </View>
-                          ))}
+                          )}
+                          {informationState.catalogBook.publicationDate && (
+                            <View style={[styles.pubFactRow, styles.pubFactRowBordered]}>
+                              <Text style={styles.pubFactLabel}>Published</Text>
+                              <Text style={styles.pubFactValue}>
+                                {informationState.catalogBook.publicationDate}
+                              </Text>
+                            </View>
+                          )}
+                          {informationState.catalogBook.originalLanguage && (
+                            <View style={[styles.pubFactRow, styles.pubFactRowBordered]}>
+                              <Text style={styles.pubFactLabel}>Original language</Text>
+                              <Text style={styles.pubFactValue}>
+                                {informationState.catalogBook.originalLanguage}
+                              </Text>
+                            </View>
+                          )}
+                          {informationState.catalogBook.genres?.length > 0 && (
+                            <View style={styles.genreChipRow}>
+                              {informationState.catalogBook.genres.map(genre => (
+                                <View key={genre} style={styles.genreChip}>
+                                  <Text style={styles.genreChipText}>{genre}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
                         </View>
+                      </View>
+
+                      {/* How It Was Written / Historical Context / Reception & Legacy */}
+                      {NARRATIVE_SECTIONS.map(section =>
+                        renderNarrativeSection(
+                          section.statusKey,
+                          section.title,
+                          informationState.catalogBook[section.field],
+                          (informationState.catalogBook.contentStatus || {})[section.statusKey]
+                        )
                       )}
-                    </View>
 
-                    {/* How It Was Written / Historical Context / Reception & Legacy */}
-                    {NARRATIVE_SECTIONS.map(section =>
-                      renderNarrativeSection(
-                        section.title,
-                        informationState.catalogBook[section.field],
-                        (informationState.catalogBook.contentStatus || {})[section.statusKey]
-                      )
-                    )}
-
-                    {/* Related Content — visually separated from the narrative sections above */}
-                    {groupedRelatedContent.length > 0 && (
-                      <View style={styles.relatedContentSection}>
+                      {/* Related Content — visually separated from the narrative sections above */}
+                      {groupedRelatedContent.length > 0 && (
+                        <View
+                          style={styles.relatedContentSection}
+                          onLayout={registerInfoSection('related')}
+                        >
                         <Text style={styles.relatedContentHeader}>Related Content</Text>
                         {groupedRelatedContent.map(group => (
                           <View key={group.key} style={styles.communityCategoryBlock}>
@@ -1333,19 +1298,20 @@ export default function BookChat({
                             ))}
                           </View>
                         ))}
-                      </View>
-                    )}
-
-                    {/* Explore — stubbed actions, not wired up yet */}
-                    <View style={styles.exploreRow}>
-                      {EXPLORE_ACTIONS.map(action => (
-                        <View key={action.key} style={styles.exploreAction}>
-                          <Text style={styles.exploreActionIcon}>{action.icon}</Text>
-                          <Text style={styles.exploreActionLabel}>{action.label}</Text>
                         </View>
-                      ))}
-                    </View>
-                  </ScrollView>
+                      )}
+
+                      {/* Explore — stubbed actions, not wired up yet */}
+                      <View style={styles.exploreRow}>
+                        {EXPLORE_ACTIONS.map(action => (
+                          <View key={action.key} style={styles.exploreAction}>
+                            <Text style={styles.exploreActionIcon}>{action.icon}</Text>
+                            <Text style={styles.exploreActionLabel}>{action.label}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </>
                 ) : (
                   <View style={styles.communityStatusContainer}>
                     <ActivityIndicator color={theme.colors.orange} size='small' />
@@ -1453,8 +1419,11 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     flex: 1,
-    paddingLeft: 16,
-    paddingRight: 16,
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+    paddingLeft: 18,
+    paddingRight: 18,
   },
   keyboardView: {
     flex: 1,
@@ -1507,6 +1476,14 @@ const styles = StyleSheet.create({
   statusSection: {
     marginBottom: 10,
   },
+  statusMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1541,24 +1518,19 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusMenu: {
-    marginTop: 6,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: 10,
-    padding: 6,
+    position: 'absolute',
+    zIndex: 1001,
+    ...theme.components.dropdown.card,
+    ...theme.components.dropdown.card.shadow,
   },
   statusOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    ...theme.components.dropdown.item,
   },
   statusOptionText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    ...theme.components.dropdown.itemText,
     color: theme.colors.textSecondary,
   },
   statusOptionTextActive: {
@@ -1571,10 +1543,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
   },
   statusMenuDivider: {
-    height: 1,
-    backgroundColor: theme.colors.borderSubtle,
-    marginVertical: 6,
-    marginHorizontal: 4,
+    height: StyleSheet.hairlineWidth,
+    ...theme.components.dropdown.divider,
   },
   ratingLabel: {
     fontSize: 11,
@@ -1596,22 +1566,75 @@ const styles = StyleSheet.create({
   starFilled: {
     color: theme.colors.orange,
   },
-  bylineBlock: {
-    paddingHorizontal: 4,
-    marginBottom: 10,
-    gap: 2,
+  starSlot: {
+    width: STAR_SIZE,
+    height: 22,
+    justifyContent: 'center',
+    position: 'relative',
   },
-  bylineAuthor: {
-    color: theme.colors.textSecondary,
+  starFillMask: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: '100%',
+    overflow: 'hidden',
+  },
+  starHalfLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: STAR_SIZE / 2,
+  },
+  starHalfRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: STAR_SIZE / 2,
+  },
+  statusMenuPageRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
+  },
+  statusMenuPageInput: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    color: theme.colors.textPrimary,
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    lineHeight: 17,
+    fontFamily: 'Inter_500Medium',
+    outlineStyle: 'none',
   },
-  bylineMeta: {
-    color: 'rgba(201, 209, 217, 0.85)',
+  statusMenuPageButton: {
+    flexShrink: 0,
+    backgroundColor: theme.colors.orange,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  statusMenuPageButtonDisabled: {
+    opacity: 0.6,
+  },
+  statusMenuPageButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  statusMenuPageError: {
+    paddingHorizontal: 8,
+    marginTop: 2,
+    marginBottom: 4,
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
-    lineHeight: 15,
+    color: theme.colors.danger,
   },
   statsCard: {
     flexDirection: 'row',
@@ -1638,16 +1661,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
-  },
-  updatePageLink: {
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  updatePageLinkText: {
-    color: theme.colors.textSecondary,
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    textDecorationLine: 'underline',
   },
   moreDetailsSection: {
     marginTop: 2,
@@ -1863,22 +1876,94 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
   },
+  informationContainer: {
+    flex: 1,
+    position: 'relative',
+    minHeight: 400,
+  },
+  infoJumpNav: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 46,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+  },
+  infoJumpNavContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  infoJumpNavPill: {
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  infoJumpNavPillText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.textSecondary,
+  },
   informationContent: {
     padding: 20,
     gap: 4,
+    width: '100%',
+  },
+  infoHeroRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 24,
+    marginBottom: 26,
+    width: '100%',
+  },
+  infoLeadBlock: {
+    flex: 1,
+    flexBasis: 260,
+    minWidth: 0,
+  },
+  infoLeadText: {
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    color: theme.colors.textPrimary,
+    lineHeight: 25,
+  },
+  infoBox: {
+    width: 260,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSubtle,
+    borderRadius: 14,
+    padding: 16,
+  },
+  infoBoxEyebrow: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 4,
   },
   infoSectionBlock: {
-    marginBottom: 22,
+    marginBottom: 26,
   },
   infoSectionHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   infoSectionTitle: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
     color: theme.colors.textPrimary,
   },
   infoSectionStatus: {
@@ -1898,36 +1983,68 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
   sourceList: {
-    marginTop: 10,
-    gap: 4,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+    gap: 5,
   },
-  sourceLink: {
+  sourceListLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  sourceLinkRow: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  sourceLinkIndex: {
     fontSize: 11,
     fontFamily: 'Inter_500Medium',
-    color: theme.colors.blueLight,
+    color: theme.colors.textMuted,
+  },
+  sourceLink: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: theme.colors.sageLight,
   },
   pubFactRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 5,
+    flexDirection: 'column',
+    paddingVertical: 8,
+    gap: 2,
+  },
+  pubFactRowBordered: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+  },
+  pubFactRowFirst: {
+    borderTopWidth: 0,
+    paddingTop: 2,
   },
   pubFactLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: 'rgba(201, 209, 217, 0.85)',
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   pubFactValue: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textPrimary,
-    flexShrink: 1,
-    textAlign: 'right',
   },
   genreChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
   },
   genreChip: {
     borderWidth: 1,
@@ -1943,15 +2060,16 @@ const styles = StyleSheet.create({
   },
   relatedContentSection: {
     marginTop: 6,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
+    marginBottom: 26,
   },
   relatedContentHeader: {
     fontSize: 16,
     fontFamily: 'Inter_700Bold',
     color: theme.colors.textPrimary,
     marginBottom: 14,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
   },
   exploreRow: {
     flexDirection: 'row',
@@ -1979,73 +2097,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
     color: theme.colors.textSecondary,
-  },
-  historyContent: {
-    padding: 20,
-  },
-  historyRow: {
-    flexDirection: 'row',
-    gap: 14,
-    paddingVertical: 14,
-  },
-  historyDivider: {
-    height: 1,
-    backgroundColor: theme.colors.borderSubtle,
-  },
-  historyIcon: {
-    fontSize: 20,
-    marginTop: 2,
-  },
-  historyTextBlock: {
-    flex: 1,
-    minWidth: 0,
-  },
-  historyLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: 'rgba(201, 209, 217, 0.85)',
-    marginBottom: 3,
-  },
-  historyValue: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-    color: theme.colors.textPrimary,
-  },
-  historySectionTitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: theme.colors.textPrimary,
-    marginTop: 6,
-    marginBottom: 10,
-  },
-  historyLogLoading: {
-    marginVertical: 12,
-  },
-  historyEmptyText: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: theme.colors.textMuted,
-    lineHeight: 18,
-  },
-  historyLogRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderSubtle,
-  },
-  historyLogText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-    color: theme.colors.textPrimary,
-  },
-  historyLogDate: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: theme.colors.textMuted,
   },
   pageUpdateRow: {
     flexDirection: 'row',
@@ -2116,7 +2167,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   userBubble: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.sage,
     borderBottomRightRadius: 4,
     borderWidth: 0,
   },
@@ -2207,7 +2258,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
   },
   sendButton: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.sage,
     width: 54,
     height: 54,
     borderRadius: 12,
@@ -2215,7 +2266,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: 'rgba(66, 133, 244, 0.4)',
+    backgroundColor: theme.colors.sageMuted,
   },
   sendButtonText: {
     color: '#fff',

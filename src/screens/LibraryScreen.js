@@ -16,6 +16,7 @@ export default function LibraryScreen({
   onBack,
   onNavigateHome,
   onNavigateSettings,
+  onNavigateToLibrary,
   onSelectBook,
 }) {
   const { user } = useAuth();
@@ -51,35 +52,34 @@ export default function LibraryScreen({
       <AppHeader
         onNavigateHome={onNavigateHome ?? onBack}
         onNavigateSettings={onNavigateSettings}
+        onNavigateLibrary={onNavigateToLibrary}
         onBack={onBack}
       />
 
-      <View style={styles.tabBarOuter}>
-        <View style={styles.tabBar}>
-          {TABS.map(tab => {
-            const isActive = tab.key === activeTab;
-            return (
-              <TouchableOpacity
-                key={tab.key}
-                style={styles.tabItem}
-                onPress={() => setActiveTab(tab.key)}
-                activeOpacity={0.7}
+      <View style={styles.tabBar}>
+        {TABS.map(tab => {
+          const isActive = tab.key === activeTab;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={styles.tabItem}
+              onPress={() => setActiveTab(tab.key)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[styles.tabLabel, isActive && styles.tabLabelActive]}
               >
-                <Text
-                  style={[styles.tabLabel, isActive && styles.tabLabelActive]}
-                >
-                  {tab.label}
-                </Text>
-                <View
-                  style={[
-                    styles.tabIndicator,
-                    isActive && styles.tabIndicatorActive,
-                  ]}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                {tab.label}
+              </Text>
+              <View
+                style={[
+                  styles.tabIndicator,
+                  isActive && styles.tabIndicatorActive,
+                ]}
+              />
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {loading ? (
@@ -102,16 +102,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  tabBarOuter: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderSubtle,
-  },
   tabBar: {
     flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
     maxWidth: 1200,
     alignSelf: 'center',
     width: '100%',
-    paddingHorizontal: theme.spacing.x4,
+    paddingHorizontal: 18,
   },
   tabItem: {
     paddingHorizontal: 14,
@@ -135,7 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   tabIndicatorActive: {
-    backgroundColor: theme.colors.blue,
+    backgroundColor: theme.colors.sage,
   },
   loadingContainer: {
     flex: 1,

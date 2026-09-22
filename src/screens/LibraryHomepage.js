@@ -166,6 +166,7 @@ export default function Homepage({
           onSelectBook={handleSelectSearchBook}
           onNavigateHome={onNavigateHome}
           onNavigateSettings={onNavigateToSettings}
+          onNavigateLibrary={onNavigateToLibrary}
         />
 
         <View style={styles.mainContent}>
@@ -270,12 +271,16 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    maxWidth: 1200,
+    alignSelf: 'center',
+    width: '100%',
+    paddingHorizontal: 18,
   },
   panelsRow: {
     flex: 1,
     flexDirection: 'row',
     gap: theme.spacing.x2_5,
-    padding: theme.spacing.x2_5,
+    paddingVertical: theme.spacing.x2_5,
   },
   panelsRowNarrow: {
     flexDirection: 'column',

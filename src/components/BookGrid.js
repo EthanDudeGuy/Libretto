@@ -73,7 +73,8 @@ const styles = StyleSheet.create({
     maxWidth: 1200,
     alignSelf: 'center',
     width: '100%',
-    padding: theme.spacing.x4,
+    paddingHorizontal: 18,
+    paddingVertical: theme.spacing.x4,
   },
   card: {
     width: CARD_WIDTH,

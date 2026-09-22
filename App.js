@@ -117,12 +117,14 @@ function AppContent() {
           onBack={navigateToHomepage}
           onNavigateHome={navigateToHomepage}
           onNavigateSettings={navigateToSettings}
+          onNavigateToLibrary={navigateToLibrary}
           onSelectBook={navigateToChat}
         />
       ) : currentView === 'settings' ? (
         <SettingsScreen
           onNavigateHome={navigateToHomepage}
           onNavigateSettings={navigateToSettings}
+          onNavigateToLibrary={navigateToLibrary}
           onSelectBook={handleSelectBookFromSettings}
         />
       ) : (
@@ -131,6 +133,7 @@ function AppContent() {
           onBack={navigateToHomepage}
           onNavigateHome={navigateToHomepage}
           onNavigateSettings={navigateToSettings}
+          onNavigateToLibrary={navigateToLibrary}
           onSelectBook={navigateToChat}
         />
       )}

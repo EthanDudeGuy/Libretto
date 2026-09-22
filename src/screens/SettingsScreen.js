@@ -18,6 +18,7 @@ import AppHeader from '../components/AppHeader';
 export default function SettingsScreen({
   onNavigateHome,
   onNavigateSettings,
+  onNavigateToLibrary,
   onSelectBook,
 }) {
   const { user, logout, getAIPersonality, setAIPersonality } = useAuth();
@@ -128,6 +129,7 @@ export default function SettingsScreen({
         onSelectBook={onSelectBook}
         onNavigateHome={onNavigateHome}
         onNavigateSettings={onNavigateSettings}
+        onNavigateLibrary={onNavigateToLibrary}
       />
 
       <ScrollView
@@ -135,7 +137,12 @@ export default function SettingsScreen({
         contentContainerStyle={styles.scrollInner}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageTitle}>Settings</Text>
+        <View style={styles.pageHeader}>
+          <Text style={styles.pageTitle}>Settings</Text>
+          <Text style={styles.pageSubtitle}>
+            Manage your profile, security, and how Waddle talks to you
+          </Text>
+        </View>
 
         {/* Profile summary */}
         <View style={styles.profileCard}>
@@ -359,9 +366,23 @@ export default function SettingsScreen({
                 onPress={() => handlePersonalityChange(personality.id)}
               >
                 <View style={styles.personalityHeader}>
-                  <Text style={styles.personalityEmoji}>
-                    {personality.emoji}
-                  </Text>
+                  <View
+                    style={[
+                      styles.personalityIconWell,
+                      selectedPersonality === personality.id &&
+                        styles.personalityIconWellSelected,
+                    ]}
+                  >
+                    <Ionicons
+                      name={personality.icon}
+                      size={17}
+                      color={
+                        selectedPersonality === personality.id
+                          ? theme.colors.orangeLight
+                          : theme.colors.textSecondary
+                      }
+                    />
+                  </View>
                   <Text
                     style={[
                       styles.personalityName,
@@ -473,12 +494,21 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
+  pageHeader: {
+    marginBottom: 20,
+  },
   pageTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '600',
     color: theme.colors.textPrimary,
     fontFamily: 'Inter_600SemiBold',
-    marginBottom: 18,
+    letterSpacing: -0.3,
+  },
+  pageSubtitle: {
+    fontSize: 14,
+    color: theme.colors.textMuted,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 4,
   },
   // Profile summary card
   profileCard: {
@@ -644,9 +674,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  personalityEmoji: {
-    fontSize: 20,
+  personalityIconWell: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surfaceMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 10,
+  },
+  personalityIconWellSelected: {
+    backgroundColor: theme.colors.orangeMuted,
   },
   personalityName: {
     fontSize: 15,
