@@ -18,6 +18,7 @@ export default function LibraryScreen({
   onNavigateSettings,
   onNavigateToLibrary,
   onSelectBook,
+  onSelectSearchBook,
 }) {
   const { user } = useAuth();
   const [books, setBooks] = useState([]);
@@ -50,6 +51,7 @@ export default function LibraryScreen({
   return (
     <View style={styles.container}>
       <AppHeader
+        onSelectBook={onSelectSearchBook}
         onNavigateHome={onNavigateHome ?? onBack}
         onNavigateSettings={onNavigateSettings}
         onNavigateLibrary={onNavigateToLibrary}

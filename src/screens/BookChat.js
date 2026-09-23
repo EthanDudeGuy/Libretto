@@ -119,13 +119,6 @@ function groupRelatedContent(relatedContent) {
   })).filter(group => group.items.length > 0);
 }
 
-// Explore action row — stubbed per spec, no wiring yet.
-const EXPLORE_ACTIONS = [
-  { key: 'read', label: 'Read', icon: '📖' },
-  { key: 'ask', label: 'Ask the Book', icon: '💬' },
-  { key: 'study', label: 'Study', icon: '🎓' },
-];
-
 // Star size for the rating row — tapping the left/right half of a star
 // sets a half or whole rating (e.g. 3.5 vs 4).
 const STAR_SIZE = 20;
@@ -306,7 +299,20 @@ export default function BookChat({
           } else if (result.platform === 'android') {
             dominantColor = result.dominant || result.vibrant || theme.colors.surface;
           } else if (result.platform === 'web') {
-            dominantColor = result.dominant || result.vibrant || theme.colors.surface;
+            // Not result.dominant: react-native-image-colors' web implementation
+            // picks it by iterating the palette with a highest-population
+            // threshold that's never updated, so it always returns the last
+            // swatch in object-key order (LightMuted) regardless of which
+            // color actually dominates the cover. Rank the correctly-assigned
+            // named swatches ourselves instead.
+            dominantColor =
+              result.vibrant ||
+              result.darkVibrant ||
+              result.muted ||
+              result.darkMuted ||
+              result.lightVibrant ||
+              result.lightMuted ||
+              theme.colors.surface;
           }
 
           setBackgroundColor(dominantColor);
@@ -1301,15 +1307,6 @@ export default function BookChat({
                         </View>
                       )}
 
-                      {/* Explore — stubbed actions, not wired up yet */}
-                      <View style={styles.exploreRow}>
-                        {EXPLORE_ACTIONS.map(action => (
-                          <View key={action.key} style={styles.exploreAction}>
-                            <Text style={styles.exploreActionIcon}>{action.icon}</Text>
-                            <Text style={styles.exploreActionLabel}>{action.label}</Text>
-                          </View>
-                        ))}
-                      </View>
                     </ScrollView>
                   </>
                 ) : (
@@ -1471,7 +1468,6 @@ const styles = StyleSheet.create({
   bookCoverContainer: {
     alignItems: 'center',
     marginBottom: 10,
-    boxShadow: '0px 8px 20px rgba(0, 0, 0, 0.35)',
   },
   statusSection: {
     marginBottom: 10,
@@ -2070,33 +2066,6 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,
-  },
-  exploreRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
-  },
-  exploreAction: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: 12,
-    paddingVertical: 14,
-    opacity: 0.6,
-  },
-  exploreActionIcon: {
-    fontSize: 18,
-  },
-  exploreActionLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    color: theme.colors.textSecondary,
   },
   pageUpdateRow: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, View } from 'react-native';
+import { SafeAreaView, View, Alert } from 'react-native';
 import {
   useFonts,
   Inter_400Regular,
@@ -17,11 +17,11 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import LandingScreen from './src/screens/LandingScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import { loadBooks, addBook } from './src/utils/BookStorage';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState('homepage');
   const [selectedBook, setSelectedBook] = useState(null);
-  const [pendingAddBook, setPendingAddBook] = useState(null);
   const [authView, setAuthView] = useState('landing');
   const { isAuthenticated, isLoading, user } = useAuth();
 
@@ -54,9 +54,46 @@ function AppContent() {
     setSelectedBook(null);
   };
 
-  const handleSelectBookFromSettings = book => {
-    setPendingAddBook(book);
-    setCurrentView('homepage');
+  // Selecting a book from the header search: if it's already in the
+  // library, just open it; otherwise add it (as "want to read", no page
+  // prompt) and open its Information tab. Shared by every screen's header
+  // search so the behavior is consistent no matter where you search from.
+  const handleSelectSearchBook = async searchBook => {
+    try {
+      const libraryBooks = await loadBooks(user.id);
+      const existingBook = libraryBooks.find(
+        libraryBook =>
+          libraryBook.googleBooksId && libraryBook.googleBooksId === searchBook.id
+      );
+
+      if (existingBook) {
+        navigateToChat(existingBook);
+        return;
+      }
+
+      const newBook = {
+        title: searchBook.title,
+        author: searchBook.author,
+        totalPages: searchBook.pageCount || null,
+        currentPage: null,
+        chapter: null,
+        progress: 0,
+        status: 'want_to_read',
+        googleBooksId: searchBook.id || null,
+        thumbnail: searchBook.thumbnail || null,
+        description: searchBook.description || '',
+        publishedDate: searchBook.publishedDate || '',
+        isbn: searchBook.isbn || null,
+        categories: searchBook.categories || [],
+        publisher: searchBook.publisher || '',
+      };
+
+      const addedBook = await addBook(newBook, user.id);
+      navigateToChat(addedBook);
+    } catch (error) {
+      console.error('Error adding book from search:', error);
+      Alert.alert('Error', 'Failed to add book to your library');
+    }
   };
 
   const navigateToLogin = () => {
@@ -109,8 +146,7 @@ function AppContent() {
           onNavigateToSettings={navigateToSettings}
           onNavigateHome={navigateToHomepage}
           onNavigateToLibrary={navigateToLibrary}
-          pendingAddBook={pendingAddBook}
-          onConsumePendingAddBook={() => setPendingAddBook(null)}
+          onSelectBook={handleSelectSearchBook}
         />
       ) : currentView === 'library' ? (
         <LibraryScreen
@@ -119,13 +155,14 @@ function AppContent() {
           onNavigateSettings={navigateToSettings}
           onNavigateToLibrary={navigateToLibrary}
           onSelectBook={navigateToChat}
+          onSelectSearchBook={handleSelectSearchBook}
         />
       ) : currentView === 'settings' ? (
         <SettingsScreen
           onNavigateHome={navigateToHomepage}
           onNavigateSettings={navigateToSettings}
           onNavigateToLibrary={navigateToLibrary}
-          onSelectBook={handleSelectBookFromSettings}
+          onSelectBook={handleSelectSearchBook}
         />
       ) : (
         <BookChat
@@ -134,7 +171,7 @@ function AppContent() {
           onNavigateHome={navigateToHomepage}
           onNavigateSettings={navigateToSettings}
           onNavigateToLibrary={navigateToLibrary}
-          onSelectBook={navigateToChat}
+          onSelectBook={handleSelectSearchBook}
         />
       )}
       <StatusBar style='light' />

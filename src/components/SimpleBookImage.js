@@ -32,8 +32,6 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 14,
     backgroundColor: theme.colors.surface,
-    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.35)',
-    elevation: 6,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
