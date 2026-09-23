@@ -25,6 +25,7 @@ import SimpleBookImage from '../components/SimpleBookImage';
 import AppHeader from '../components/AppHeader';
 import { sendMessageToClaude, getCommunityResources } from '../services/ClaudeAPI';
 import { loadCatalogBookByTitle, loadRelatedContent } from '../services/CatalogAPI';
+import { loadBookInfo } from '../services/BookInfoAPI';
 import { useAuth } from '../context/AuthContext';
 import { handleAPIError, logError } from '../utils/ErrorHandler';
 import ImageColors from 'react-native-image-colors';
@@ -118,13 +119,6 @@ function groupRelatedContent(relatedContent) {
     items: group.types.flatMap(type => relatedContent[type] || []),
   })).filter(group => group.items.length > 0);
 }
-
-// Explore action row — stubbed per spec, no wiring yet.
-const EXPLORE_ACTIONS = [
-  { key: 'read', label: 'Read', icon: '📖' },
-  { key: 'ask', label: 'Ask the Book', icon: '💬' },
-  { key: 'study', label: 'Study', icon: '🎓' },
-];
 
 // Star size for the rating row — tapping the left/right half of a star
 // sets a half or whole rating (e.g. 3.5 vs 4).
@@ -239,6 +233,7 @@ export default function BookChat({
   // status: 'idle' | 'loading' | 'success' | 'not_found'
   const [informationState, setInformationState] = useState({
     status: 'idle',
+    bookInfo: null,
     catalogBook: null,
     relatedContent: {},
     bookId: null,
@@ -529,26 +524,39 @@ export default function BookChat({
   const loadInformation = async () => {
     setInformationState({
       status: 'loading',
+      bookInfo: null,
       catalogBook: null,
       relatedContent: {},
       bookId: currentBook.id,
     });
-    const catalogBook = await loadCatalogBookByTitle(currentBook.title);
-    if (!catalogBook) {
+    // Published facts come from Google Books / Open Library (cached); the
+    // catalog only adds its stored narrative sections and related content.
+    const [bookInfo, catalogBook] = await Promise.all([
+      loadBookInfo(currentBook),
+      loadCatalogBookByTitle(currentBook.title),
+    ]);
+    if (!bookInfo && !catalogBook) {
       setInformationState({
         status: 'not_found',
+        bookInfo: null,
         catalogBook: null,
         relatedContent: {},
         bookId: currentBook.id,
       });
       return;
     }
-    const relatedContent = await loadRelatedContent(catalogBook.id);
-    setInformationState({ status: 'success', catalogBook, relatedContent, bookId: currentBook.id });
+    const relatedContent = catalogBook ? await loadRelatedContent(catalogBook.id) : {};
+    setInformationState({
+      status: 'success',
+      bookInfo,
+      catalogBook,
+      relatedContent,
+      bookId: currentBook.id,
+    });
   };
 
   // Same once-per-book pattern as Community: the Information tab reads from
-  // the pre-researched catalog, never triggers an LLM call itself.
+  // book APIs and the catalog, never triggers an LLM call itself.
   useEffect(() => {
     if (activeTab !== 'information') return;
     if (informationState.bookId === currentBook.id && informationState.status !== 'idle') return;
@@ -654,12 +662,12 @@ export default function BookChat({
     }
   };
 
-  // One narrative section of the Information tab (Synopsis, How It Was
-  // Written, etc.) — content is null until the research pipeline finishes
-  // that section, so status drives what's shown instead of just the data.
+  // One narrative section of the Information tab (How It Was Written, etc.)
+  // — hidden entirely unless there's real content for it.
   // Headers use a bottom rule (Wikipedia's h2 treatment) so sections read as
   // distinct entries in one continuous article rather than separate cards.
   const renderNarrativeSection = (sectionKey, title, content, status) => {
+    if (!content?.summary) return null;
     const statusMeta = CONTENT_STATUS_META[status] || CONTENT_STATUS_META.pending;
     return (
       <View key={sectionKey} style={styles.infoSectionBlock} onLayout={registerInfoSection(sectionKey)}>
@@ -671,39 +679,54 @@ export default function BookChat({
             </Text>
           )}
         </View>
-        {content?.summary ? (
-          <>
-            <Text style={styles.infoSectionBody}>{content.summary}</Text>
-            {content.sources?.length > 0 && (
-              <View style={styles.sourceList}>
-                <Text style={styles.sourceListLabel}>References</Text>
-                {content.sources.map((source, index) => (
-                  <TouchableOpacity
-                    key={`${source.url}-${index}`}
-                    onPress={() => source.url && Linking.openURL(source.url)}
-                    activeOpacity={0.7}
-                    style={styles.sourceLinkRow}
-                  >
-                    <Text style={styles.sourceLinkIndex}>{index + 1}.</Text>
-                    <Text style={styles.sourceLink} numberOfLines={1}>
-                      {source.title}
-                      {source.publisher ? ` — ${source.publisher}` : ''}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </>
-        ) : (
-          <Text style={styles.infoSectionEmptyText}>
-            {status === 'researching'
-              ? 'This section is being researched.'
-              : 'Not available yet.'}
-          </Text>
+        <Text style={styles.infoSectionBody}>{content.summary}</Text>
+        {content.sources?.length > 0 && (
+          <View style={styles.sourceList}>
+            <Text style={styles.sourceListLabel}>References</Text>
+            {content.sources.map((source, index) => (
+              <TouchableOpacity
+                key={`${source.url}-${index}`}
+                onPress={() => source.url && Linking.openURL(source.url)}
+                activeOpacity={0.7}
+                style={styles.sourceLinkRow}
+              >
+                <Text style={styles.sourceLinkIndex}>{index + 1}.</Text>
+                <Text style={styles.sourceLink} numberOfLines={1}>
+                  {source.title}
+                  {source.publisher ? ` — ${source.publisher}` : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
       </View>
     );
   };
+
+  // Information tab facts: book-API data first, catalog as the fallback.
+  // Every field may be empty — rows and sections only render when present.
+  const infoFacts = (() => {
+    const info = informationState.bookInfo || {};
+    const catalog = informationState.catalogBook || {};
+    const catalogSeries = catalog.series
+      ? `${catalog.series.name}${
+          catalog.seriesPosition && catalog.series.bookIds?.length
+            ? ` (Book ${catalog.seriesPosition} of ${catalog.series.bookIds.length})`
+            : ''
+        }`
+      : null;
+    return {
+      synopsis: info.description || catalog.synopsis?.summary || null,
+      author: info.authors?.length ? info.authors.join(', ') : catalog.author?.name || null,
+      series: catalogSeries || info.series || null,
+      publicationDate: info.publicationDate || catalog.publicationDate || null,
+      publisher: info.publisher || null,
+      isbn: info.isbn || null,
+      pageCount: info.pageCount || null,
+      originalLanguage: catalog.originalLanguage || null,
+      genres: info.genres?.length ? info.genres : catalog.genres || [],
+    };
+  })();
 
   // Remaining reading time, replacing the old flat "Progress: X% Complete"
   // sidebar row — paired with the radial ring instead of repeating the
@@ -739,6 +762,17 @@ export default function BookChat({
 
   const groupedCommunitySources = groupCommunitySources(communityState.sources);
   const groupedRelatedContent = groupRelatedContent(informationState.relatedContent);
+
+  // Jump nav only lists sections that will actually render.
+  const narrativeSections = NARRATIVE_SECTIONS.filter(
+    section => informationState.catalogBook?.[section.field]?.summary
+  );
+  const infoJumpNav = INFO_JUMP_NAV.filter(item => {
+    if (item.key === 'synopsis') return !!infoFacts.synopsis;
+    if (item.key === 'details') return true;
+    if (item.key === 'related') return groupedRelatedContent.length > 0;
+    return narrativeSections.some(section => section.statusKey === item.key);
+  });
 
   return (
     <View style={styles.container}>
@@ -930,7 +964,13 @@ export default function BookChat({
           >
             {/* Book Cover using SimpleBookImage component */}
             <View style={styles.bookCoverContainer}>
-              <SimpleBookImage book={currentBook} />
+              <SimpleBookImage
+                book={
+                  !currentBook.thumbnail && informationState.bookInfo?.cover
+                    ? { ...currentBook, thumbnail: informationState.bookInfo.cover }
+                    : currentBook
+                }
+              />
             </View>
 
             {/* Reading status + rating — a manually-set shelf, shown right
@@ -1142,11 +1182,10 @@ export default function BookChat({
                   <View style={styles.communityStatusContainer}>
                     <Text style={styles.communityStatusTitle}>Nothing here yet</Text>
                     <Text style={styles.communityStatusText}>
-                      "{currentBook.title}" hasn't been researched yet — extended details show
-                      up here once it has.
+                      We couldn't find published details for "{currentBook.title}".
                     </Text>
                   </View>
-                ) : informationState.status === 'success' && informationState.catalogBook ? (
+                ) : informationState.status === 'success' ? (
                   <>
                     {/* Jump nav — Wikipedia-style table of contents for this article */}
                     <ScrollView
@@ -1155,7 +1194,7 @@ export default function BookChat({
                       style={styles.infoJumpNav}
                       contentContainerStyle={styles.infoJumpNavContent}
                     >
-                      {INFO_JUMP_NAV.map(item => (
+                      {infoJumpNav.map(item => (
                         <TouchableOpacity
                           key={item.key}
                           style={styles.infoJumpNavPill}
@@ -1178,23 +1217,14 @@ export default function BookChat({
                       <View style={styles.infoHeroRow}>
                         {/* Synopsis — the article's lead paragraph, unboxed and set
                             larger than the sections below it */}
-                        <View
-                          style={styles.infoLeadBlock}
-                          onLayout={registerInfoSection('synopsis')}
-                        >
-                          {informationState.catalogBook.synopsis?.summary ? (
-                            <Text style={styles.infoLeadText}>
-                              {informationState.catalogBook.synopsis.summary}
-                            </Text>
-                          ) : (
-                            <Text style={styles.infoSectionEmptyText}>
-                              {(informationState.catalogBook.contentStatus || {}).synopsis ===
-                              'researching'
-                                ? 'This section is being researched.'
-                                : 'Not available yet.'}
-                            </Text>
-                          )}
-                        </View>
+                        {infoFacts.synopsis && (
+                          <View
+                            style={styles.infoLeadBlock}
+                            onLayout={registerInfoSection('synopsis')}
+                          >
+                            <Text style={styles.infoLeadText}>{infoFacts.synopsis}</Text>
+                          </View>
+                        )}
 
                         {/* Details — an infobox in the Wikipedia sense: a compact,
                             docked table of quick facts set apart from the prose */}
@@ -1203,48 +1233,32 @@ export default function BookChat({
                           onLayout={registerInfoSection('details')}
                         >
                           <Text style={styles.infoBoxEyebrow}>Quick Facts</Text>
-                          <View
-                            style={[
-                              styles.pubFactRow,
-                              styles.pubFactRowBordered,
-                              styles.pubFactRowFirst,
-                            ]}
-                          >
-                            <Text style={styles.pubFactLabel}>Author</Text>
-                            <Text style={styles.pubFactValue}>
-                              {informationState.catalogBook.author?.name || 'Unknown'}
-                            </Text>
-                          </View>
-                          {informationState.catalogBook.series && (
-                            <View style={[styles.pubFactRow, styles.pubFactRowBordered]}>
-                              <Text style={styles.pubFactLabel}>Series</Text>
-                              <Text style={styles.pubFactValue}>
-                                {informationState.catalogBook.series.name}
-                                {informationState.catalogBook.seriesPosition
-                                  ? ` (Book ${informationState.catalogBook.seriesPosition} of ${informationState.catalogBook.series.bookIds.length})`
-                                  : ''}
-                              </Text>
-                            </View>
-                          )}
-                          {informationState.catalogBook.publicationDate && (
-                            <View style={[styles.pubFactRow, styles.pubFactRowBordered]}>
-                              <Text style={styles.pubFactLabel}>Published</Text>
-                              <Text style={styles.pubFactValue}>
-                                {informationState.catalogBook.publicationDate}
-                              </Text>
-                            </View>
-                          )}
-                          {informationState.catalogBook.originalLanguage && (
-                            <View style={[styles.pubFactRow, styles.pubFactRowBordered]}>
-                              <Text style={styles.pubFactLabel}>Original language</Text>
-                              <Text style={styles.pubFactValue}>
-                                {informationState.catalogBook.originalLanguage}
-                              </Text>
-                            </View>
-                          )}
-                          {informationState.catalogBook.genres?.length > 0 && (
+                          {[
+                            { label: 'Author', value: infoFacts.author },
+                            { label: 'Series', value: infoFacts.series },
+                            { label: 'Published', value: infoFacts.publicationDate },
+                            { label: 'Publisher', value: infoFacts.publisher },
+                            { label: 'Pages', value: infoFacts.pageCount && String(infoFacts.pageCount) },
+                            { label: 'ISBN', value: infoFacts.isbn },
+                            { label: 'Original language', value: infoFacts.originalLanguage },
+                          ]
+                            .filter(row => row.value)
+                            .map((row, index) => (
+                              <View
+                                key={row.label}
+                                style={[
+                                  styles.pubFactRow,
+                                  styles.pubFactRowBordered,
+                                  index === 0 && styles.pubFactRowFirst,
+                                ]}
+                              >
+                                <Text style={styles.pubFactLabel}>{row.label}</Text>
+                                <Text style={styles.pubFactValue}>{row.value}</Text>
+                              </View>
+                            ))}
+                          {infoFacts.genres.length > 0 && (
                             <View style={styles.genreChipRow}>
-                              {informationState.catalogBook.genres.map(genre => (
+                              {infoFacts.genres.map(genre => (
                                 <View key={genre} style={styles.genreChip}>
                                   <Text style={styles.genreChipText}>{genre}</Text>
                                 </View>
@@ -1255,7 +1269,7 @@ export default function BookChat({
                       </View>
 
                       {/* How It Was Written / Historical Context / Reception & Legacy */}
-                      {NARRATIVE_SECTIONS.map(section =>
+                      {narrativeSections.map(section =>
                         renderNarrativeSection(
                           section.statusKey,
                           section.title,
@@ -1301,15 +1315,6 @@ export default function BookChat({
                         </View>
                       )}
 
-                      {/* Explore — stubbed actions, not wired up yet */}
-                      <View style={styles.exploreRow}>
-                        {EXPLORE_ACTIONS.map(action => (
-                          <View key={action.key} style={styles.exploreAction}>
-                            <Text style={styles.exploreActionIcon}>{action.icon}</Text>
-                            <Text style={styles.exploreActionLabel}>{action.label}</Text>
-                          </View>
-                        ))}
-                      </View>
                     </ScrollView>
                   </>
                 ) : (
@@ -2070,33 +2075,6 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSubtle,
-  },
-  exploreRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
-  },
-  exploreAction: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-    borderRadius: 12,
-    paddingVertical: 14,
-    opacity: 0.6,
-  },
-  exploreActionIcon: {
-    fontSize: 18,
-  },
-  exploreActionLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    color: theme.colors.textSecondary,
   },
   pageUpdateRow: {
     flexDirection: 'row',
